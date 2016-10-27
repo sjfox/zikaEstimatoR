@@ -28,7 +28,7 @@ get_mcmc_summary <- function(parms, iters=10000, tuning=0.05, burnin=1000, thin=
   df
 }
 
-get_all_mcmc_summary <- function(prior_rnots, prior_sds, num_intros){
+get_all_mcmc_summary <- function(prior_rnots, prior_sds, num_intros,){
   df <- expand.grid(prior_rnot=prior_rnots, prior_sd=prior_sds, num_intros=num_intros, stringsAsFactors = F)
 
   df %>% rowwise() %>%
@@ -52,10 +52,7 @@ if(class(test_load) == "try-error"){
 }
 
 
-bayes_panels_plot <- mcmc_rnot_estimates %>% ggplot(aes(num_intros, q50)) +
-  geom_point() + facet_grid(prior_mu~prior_sd) +
-  panel_border() + geom_errorbar(aes(ymin=q2.5, ymax = q97.5)) +
-  geom_hline(aes(yintercept=as.numeric(prior_mu)), linetype=2)
-
-save_plot(filename = "figs/bayes_posteriors.pdf", plot = bayes_panels_plot, base_height = 8, base_aspect_ratio = 1.5)
+mcmc_rnot_estimates %>% ggplot(aes(num_intros, q50)) +
+  geom_point() + facet_grid(prior_mu~prior_sd, scales = "free_y") +
+  panel_border() + geom_errorbar(aes(ymin=q2.5, ymax = q97.5))
 

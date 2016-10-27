@@ -16,7 +16,8 @@ zika_parms <- function(rnot = 1.1,
                        num_intros = 1,
                        prior_mu = 1,
                        prior_sd = 1000,
-                       distribution = "pois"){
+                       distribution = "pois",
+                       overdispersion=1){
   return(as.list(environment()))
 }
 
@@ -28,32 +29,60 @@ normalize_vector <- function(values){
 intro_like <- function(parms) {
   ## Calculates the likelihood based on an R0 and number of introductions
   switch(parms$distribution,
-         pois = dpois(x = 0, lambda = parms$rnot)^parms$num_intros)
+         pois = dpois(x = 0, lambda = parms$rnot)^parms$num_intros,
+         nbinom = dnbinom(x = 0, mu = parms$rnot, size = parms$overdispersion)^parms$num_intros)
+}
+intro_loglike <- function(parms) {
+  ## Calculates the likelihood based on an R0 and number of introductions
+  switch(parms$distribution,
+         pois = dpois(x = 0, lambda = parms$rnot, log = T)*parms$num_intros,
+         nbinom = dnbinom(x = 0, mu = parms$rnot, size = parms$overdispersion, log=T)*parms$num_intros)
+}
+
+intro_like_vec <- function(rnot, num_intros, distribution, overdispersion=1){
+  parms <- subs_parms(list(rnot=rnot,
+                           num_intros = num_intros,
+                           distribution=distribution,
+                           overdispersion=overdispersion), ref_parms = zika_parms())
+  intro_like(parms)
 }
 
 
-get_rnot_ll_ci <- function(alpha, num_intros, distribution) {
+get_rnot_ll_ci <- function(alpha, num_intros, distribution, overdispersion=1, rnots=NULL) {
   ## Returns the median and % confidence interval for likelihood of rnot based
   ## On number of introductions alone
-  n <- 10000
-  ## Create vector of rnot values as possible outputs
-  rnots <- seq(0, 4, length.out = n)
 
-  ## Get the likelihood for all of the rnots, and then normalize the vector to sum to 1
-  norm_probs <- vector("numeric", length = n)
-  for(ii in 1:n){
-    parms <- subs_parms(list(rnot=rnots[ii], num_intros=num_intros, distribution=distribution), zika_parms())
-    norm_probs[ii] <- intro_like(parms)
+  if(num_intros==0){
+    warning("With 0 Introductions you have no information")
+    return(data.frame(low = NA, median = NA,  high = NA))
   }
-  norm_probs <- normalize_vector(norm_probs)
+  if(length(num_intros)!=1){
+    stop("Need to send single introduction number")
+  }
 
 
-  ## Find the rnot value that first crosses the alpha level
-  high_ind <- which(cumsum(rev(norm_probs)) >= alpha/2)[1]
-  low_ind <- which(cumsum(norm_probs) >= alpha/2)[1]
-  med_ind <- which(cumsum(norm_probs) >= 0.5)[1]
+  if(!is.null(rnots)){
+    n <- length(rnots)
+    ods <- overdispersion
+  } else {
+    n <- 10000
+    max_rnot <- 10
+    rnots <- seq(0, max_rnot, length.out = n)
+    ods <- unlist(purrr::map(rnots, ~find_overdispersion(.x)))
+  }
 
-  data.frame(low = rnots[low_ind], median = rnots[med_ind],  high = rev(rnots)[high_ind])
+  parms <- subs_parms(list(rnot=rnots, num_intros=num_intros, distribution=distribution, overdispersion=ods), zika_parms())
+  likelihoods <- intro_like(parms)
+
+  # Find index for the low, mle and high
+  low_ind <- 1
+  mle_ind <- which.max(likelihoods)
+  high_ind <- which(likelihoods < alpha)[1]
+  if(length(high_ind)==0){
+    high_ind <- n
+  }
+
+  data.frame(low = rnots[low_ind], mle = rnots[mle_ind],  high = rnots[high_ind])
 }
 
 
@@ -105,4 +134,52 @@ rnot_mcmc <- function(parms,
   return(list(samples, aratio = aratio))
 }
 
+get_secondary_above_20 <- function(rnot){
+  # Takes in an rnot value and returns the probability of seeing
+  # > 20 secondary cases from that rnot
+  p1 <- c(0.425806451612903, 0.8458765530605259)
+  p2 <- c(4.341935483870967, 3.297197366921235)
 
+  slope <- (p2[2] - p1[2]) / (p2[1] - p1[1])
+  yint <- - slope * p1[1] + p1[2]
+  if(rnot < yint){
+    warning("R0 is low and returning zero")
+    return(0)
+  }
+  (rnot - yint) / slope / 100
+}
+
+find_overdispersion <- function(rnot){
+  # Find the overdispersion parameter for a given R0
+  prob_above <- get_secondary_above_20(rnot)
+
+  compare_ps <- function(x, prob_above, rnot){
+    pnbinom(q = 20, mu = rnot, size = x, lower.tail = FALSE) - prob_above
+  }
+  # print(rnot)
+  if(prob_above == 0){
+
+    if(rnot==0) {
+      return(1e-16)
+    }
+    # browser()
+    seq_lower <- seq(1e-16, 0.5,length.out=1000)
+    low <- -1
+    prob_above <- 1e-5
+    ps <- compare_ps(seq_lower, prob_above, rnot)
+    while(max(ps, na.rm=T) < 0){
+      prob_above <- prob_above/10
+      ps <- compare_ps(seq_lower, prob_above, rnot)
+    }
+    low <- seq_lower[which.max(ps)]
+    # print(rnot)
+    # browser()
+    overdisp <- uniroot(f = compare_ps, interval = c(low, 1),  rnot=rnot, prob_above= prob_above)
+  } else {
+    seq_lower <- seq(0,0.5,length.out=1000)
+    low <- seq_lower[which(compare_ps(seq_lower, prob_above, rnot) >=0 )[1]]
+    overdisp <- uniroot(f = compare_ps, interval = c(low, 10), rnot=rnot, prob_above=prob_above)
+  }
+
+  overdisp$root
+}
