@@ -24,12 +24,12 @@ if(class(test_load) == "try-error"){
 }
 
 freq_plot <- freq_rnot_estimates %>% filter(alphas==0.01) %>%
-  ggplot(aes(intros, mle, linetype=as.factor(alphas))) + geom_point() +
+  ggplot(aes(intros, mle)) + geom_point() +
     geom_errorbar(aes(ymin=low, ymax=high))+
     coord_cartesian(xlim= c(0,15)) +
     theme(legend.position = c(0.8,0.8)) +
-    geom_hline(yintercept=1)+
-    labs(x = "Number of Introductions", y = "R0 MLE and 99% CI", linetype= "Confidence")
+    geom_hline(yintercept=1, lty=2)+
+    labs(x = "Number of Importations", y = expression("MLE and 99% CI for R"[0]))
 
 save_plot(filename = "figs/pois_expected_rnot.pdf", plot = freq_plot, base_height = 4, base_aspect_ratio = 1.1)
 
@@ -61,7 +61,7 @@ save_plot(filename = "figs/nb_freq_expected_rnot.pdf", plot = nb_freq_plot, base
 ###############################
 ## Plot for negative binomial with fit overdispersion
 ###############################
-intros <- seq(0,100, by=5)
+intros <- seq(0,20, by=1)
 alphas <- c(0.01, 0.05)
 
 nb_fitod <- as_data_frame(expand.grid(intros=intros, alphas=alphas))
@@ -76,12 +76,19 @@ if(class(test_load) == "try-error"){
 }
 
 nb_fitod_plot <- nb_fitod_estimates %>% filter(alphas==0.01) %>%
-  ggplot(aes(intros, mle)) + geom_point() +
+  mutate(high=ifelse(is.na(high), 10, high)) %>%
+  ggplot(aes(intros, mle)) + geom_point(size=2) +
   geom_errorbar(aes(ymin=low, ymax=high))+
   geom_hline(yintercept=1, lty=2) +
-  coord_cartesian(xlim= c(0,100)) +
-  labs(x = "Number of Introductions", y = "Median R0 and CI", linetype= "Confidence")
+  coord_cartesian(xlim= c(0,20)) +
+  labs(x = "Number of Importations", y = expression("MLE and 99% CI for R"[0]))#"MLE R0 and 99% CI")
+
+plot(nb_fitod_plot)
 
 save_plot(filename = "figs/nb_fitod_estimates.pdf", plot = nb_fitod_plot, base_height = 4, base_aspect_ratio = 1.8)
 
-map(seq(0,1000, length.out=1000), find_overdispersion)
+
+compare_dists_plot <- plot_grid(freq_plot, nb_fitod_plot, labels = "AUTO", align = "v")
+
+save_plot("figs/compare_pois_fitnb.pdf", plot = compare_dists_plot, base_height = 4, base_aspect_ratio = 2.2)
+

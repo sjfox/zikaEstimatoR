@@ -17,7 +17,8 @@ zika_parms <- function(rnot = 1.1,
                        prior_mu = 1,
                        prior_sd = 1000,
                        distribution = "pois",
-                       overdispersion=1){
+                       overdispersion=1,
+                       date = NA){
   return(as.list(environment()))
 }
 
@@ -39,14 +40,26 @@ intro_loglike <- function(parms) {
          nbinom = dnbinom(x = 0, mu = parms$rnot, size = parms$overdispersion, log=T)*parms$num_intros)
 }
 
-intro_like_vec <- function(rnot, num_intros, distribution, overdispersion=1){
-  parms <- subs_parms(list(rnot=rnot,
-                           num_intros = num_intros,
-                           distribution=distribution,
-                           overdispersion=overdispersion), ref_parms = zika_parms())
-  intro_like(parms)
+scaling_loglike <- function(alpha, parms){
+  ## Returns the log likelihood through time for quarter
+  ## Rnots and introductions.
+  rnots <- parms$rnot * alpha
+  ods <- unlist(purrr::map(rnots, ~find_overdispersion(.x)))
+  parms <- subs_parms(list(rnot=rnots, overdispersion=ods), parms)
+  -sum(intro_loglike(parms))
 }
 
+get_alpha_ci <- function(parms){
+  # For a set of parameters, finds the possible alphas
+  alphas <- seq(0,1, length.out = 1000)
+  nllikes <- unlist(purrr::map(alphas, ~scaling_loglike(., parms=parms)))
+  likes <- exp(-nllikes)
+
+  ## Extract the largest alpha that fulfills
+  high <- alphas[rev(which(likes > 0.05))[1]]
+
+  data_frame(mle=0, low=0, high=high)
+}
 
 get_rnot_ll_ci <- function(alpha, num_intros, distribution, overdispersion=1, rnots=NULL) {
   ## Returns the median and % confidence interval for likelihood of rnot based
