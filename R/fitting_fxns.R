@@ -49,17 +49,29 @@ scaling_loglike <- function(alpha, parms){
   -sum(intro_loglike(parms))
 }
 
-get_alpha_ci <- function(parms){
+get_alpha_ci <- function(parms, sig_level=0.01){
   # For a set of parameters, finds the possible alphas
-  alphas <- seq(0,1, length.out = 1000)
+  alphas <- seq(0,1, length.out = 5000)
   nllikes <- unlist(purrr::map(alphas, ~scaling_loglike(., parms=parms)))
   likes <- exp(-nllikes)
 
   ## Extract the largest alpha that fulfills
-  high <- alphas[rev(which(likes > 0.05))[1]]
+  high <- alphas[rev(which(likes > sig_level))[1]]
 
   data_frame(mle=0, low=0, high=high)
 }
+
+get_alpha_likes <- function(parms){
+  # Returns likelihood values for a variety of alphas, so that distributions can be calculated post-hoc
+  alphas <- seq(0, 1, length.out = 5000)
+  nllikes <- unlist(purrr::map(alphas, ~scaling_loglike(., parms=parms)))
+  likes <- exp(-nllikes)
+
+  df <- data_frame(alpha = alphas, likelihood = likes)
+  colnames(df)[2] <- as.character(parms$date)
+  df
+}
+
 
 get_rnot_ll_ci <- function(alpha, num_intros, distribution, overdispersion=1, rnots=NULL) {
   ## Returns the median and % confidence interval for likelihood of rnot based

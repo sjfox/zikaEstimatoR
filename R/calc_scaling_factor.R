@@ -22,8 +22,10 @@ tx_data <- tx_imports %>% mutate(month = factor(month, levels = month.abb)) %>%
 daily_parms <- unique(tx_data$notification_date) %>%
   purrr::map(~get_alpha_parms(tx_data, curr_date=.x))
 
+# get_alpha_ci(parms = daily_parms[[110]], sig_level = 0.05)
+
 ## Estimate alphas for each day that has an importation
-est_alphas <- purrr::map(daily_parms, get_alpha_ci)
+est_alphas <- purrr::map(daily_parms, get_alpha_ci, sig_level=0.01)
 est_alphas_df <- est_alphas %>% bind_rows() %>%
                 mutate(info = unique(tx_data$notification_date))
 
@@ -55,7 +57,7 @@ get_county_parms <- function(tx_data, desired_county){
 
 county_specific_parms <- unique(tx_data$county) %>% purrr::map(~get_county_parms(tx_data, desired_county=.x))
 county_notification_dates <- purrr::map(county_specific_parms, extract_notification_dates)
-county_est_alphas <- purrr::map(county_specific_parms, get_county_alphas)
+county_est_alphas <- purrr::map(county_specific_parms, get_county_alphas, sig_level=0.01)
 
 county_est_alphas_df <- county_est_alphas %>% purrr::map( bind_rows)
 

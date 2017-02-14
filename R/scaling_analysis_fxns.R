@@ -5,9 +5,6 @@
 
 
 get_alpha_parms <- function(tx_data, curr_date){
-  # must have ordered month in tx_data
-  # curr_month = as.numeric(curr_month)
-  # browser()
   tx_data <- tx_data %>% filter( notification_date <= curr_date) %>%
     group_by(county, month) %>%
     summarize(imports = n(), rnot = unique(rnot))
@@ -15,15 +12,19 @@ get_alpha_parms <- function(tx_data, curr_date){
   subs_parms(list(rnot = tx_data$rnot, num_intros = tx_data$imports, distribution="nbinom", date=curr_date), zika_parms())
 }
 
-# scale_rnot <- function(rnot_dat, alpha_df){
-#   rnot_dat[, as.character(alpha_df$info)] <- data.frame(map(alpha_df$high, ~.x*rnot_dat$rnot))
-#
-#   rnot_dat %>% select(-(county:rnot))
-# }
+get_alpha_parms_r0_dist <- function(tx_data, curr_date){
+  tx_data <- tx_data %>% filter( notification_date <= curr_date) %>%
+    group_by(county, month) %>%
+    summarize(imports = n(), rnot = unique(rnot))
 
-get_county_alphas <- function(county_daily_parms){
+  subs_parms(list(rnot = tx_data$rnot, num_intros = tx_data$imports, distribution="nbinom", date=curr_date), zika_parms())
+}
+
+
+
+get_county_alphas <- function(county_daily_parms, sig_level = 0.01){
   ## Runs alpha estimationg for a single set of county parameters
-  purrr::map(county_daily_parms, get_alpha_ci)
+  purrr::map(county_daily_parms, get_alpha_ci, sig_level)
 }
 
 extract_notification_dates <- function(x){

@@ -22,10 +22,10 @@ tx_county <- tx_county %>% gather(key = "month", value = "avg_temperature", Jan:
 
 
 load("data_produced/county_r0_distributions.rda")
-tx_county %>%
-  mutate(low_r0 = apply(county_r0_distributions, 1, quantile, probs=c(0.025)),
-         med_r0 = apply(county_r0_distributions, 1, quantile, probs=c(0.5)),
-         high_r0 = apply(county_r0_distributions, 1, quantile, probs=c(0.975))) -> tx_county
+tx_county <- tx_county %>%
+                mutate(low_r0 = apply(county_r0_distributions, 1, quantile, probs=c(0.025)),
+                       med_r0 = apply(county_r0_distributions, 1, quantile, probs=c(0.5)),
+                       high_r0 = apply(county_r0_distributions, 1, quantile, probs=c(0.975)))
 
 
 tx_county_rnots <- tx_county %>% mutate(month = factor(month, levels = month.abb))
