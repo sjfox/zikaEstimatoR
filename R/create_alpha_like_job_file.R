@@ -1,4 +1,4 @@
-base_url <- "ZikaEstimatoR"
+base_url <- "zikaEstimatoR"
 if(grepl('spencerfox', Sys.info()['login'])) setwd(file.path("~", "projects", base_url))
 if(grepl('vagrant', Sys.info()['user'])) setwd( file.path("/vagrant", base_url) )
 if(grepl('sjf826', Sys.info()['login'])) setwd(file.path("/home1", "02958", "sjf826", base_url))
