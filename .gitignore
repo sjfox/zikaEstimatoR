@@ -7,6 +7,12 @@
 # Session Data files
 .RData
 
+# All Data files
+*.rda
+
+# Rout files
+*.Rout
+
 # Example code in package build process
 *-Ex.R
 
