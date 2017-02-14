@@ -1,6 +1,5 @@
 rm(list=ls())
 library(tidyverse)
-library(cowplot)
 library(stringr)
 library(lubridate)
 # library(bbmle)
