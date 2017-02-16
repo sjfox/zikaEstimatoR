@@ -1,8 +1,17 @@
 rm(list=ls())
+
+args <- (commandArgs(TRUE)) ## load arguments from R CMD BATCH
+
+if(length(args)>0)  { ## Then cycle through each element of the list and evaluate the expressions.
+  print(paste0('loading in ', args, ' from R CMD BATCH'))
+  for(i in 1:length(args)) {
+    eval(parse(text=args[[i]]))
+  }
+}
+library(data.table)
 library(tidyverse)
 library(stringr)
 library(lubridate)
-library(data.table)
 # library(bbmle)
 
 base_url <- "zikaEstimatoR"
@@ -19,15 +28,6 @@ if(grepl('tacc', Sys.info()['nodename'])) setwd(file.path("/home1", "02958", "sj
 ##    single_rnot - "TRUE" or "FALSE"
 ##        - determines whether singular or distributional rnot estimate used
 #####################################################
-
-args <- (commandArgs(TRUE)) ## load arguments from R CMD BATCH
-
-if(length(args)>0)  { ## Then cycle through each element of the list and evaluate the expressions.
-  print(paste0('loading in ', args, ' from R CMD BATCH'))
-  for(i in 1:length(args)) {
-    eval(parse(text=args[[i]]))
-  }
-}
 
 sapply(c("R/fitting_fxns.R", "R/load_data.R", "R/scaling_analysis_fxns.R"), source)
 
