@@ -6,8 +6,8 @@ library(tidyverse)
 library(cowplot)
 library(stringr)
 library(lubridate)
-# library(bbmle)
-sapply(c("R/calc_monthly_rnots.R", "R/fitting_fxns.R", "R/load_data.R", "R/scaling_analysis_fxns.R"), source)
+
+sapply(c("R/fitting_fxns.R", "R/load_data.R", "R/scaling_analysis_fxns.R"), source)
 
 
 tx_data <- tx_imports %>% mutate(month = factor(month, levels = month.abb)) %>%
@@ -25,7 +25,13 @@ daily_parms <- unique(tx_data$notification_date) %>%
 # get_alpha_ci(parms = daily_parms[[110]], sig_level = 0.05)
 
 ## Estimate alphas for each day that has an importation
+library(profvis)
+profvis({
+  est_alphas <- purrr::map(daily_parms[1:2], get_alpha_ci, sig_level=0.05)
+})
 est_alphas <- purrr::map(daily_parms, get_alpha_ci, sig_level=0.01)
+
+
 est_alphas_df <- est_alphas %>% bind_rows() %>%
                 mutate(info = unique(tx_data$notification_date))
 

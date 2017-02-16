@@ -1,6 +1,7 @@
 #################################################
 ## Functions for fitting R0s
 #################################################
+
 subs_parms <- function(sub_parms=NULL,
                        ref_parms) {
   within(ref_parms, {
@@ -11,6 +12,15 @@ subs_parms <- function(sub_parms=NULL,
     rm(nm)
   })
 }
+
+find_rnot_ods <- function(rnot, disp_dt){
+  ## Takes in a vector of rnot values and returns
+  ## The dispersions for nbinom distribution
+  ## disp_dt must be sorted data table, with one column as rnot and other as ods
+  ## Can be obtained by running the calc_dispersion_table.R script
+  disp_dt[J(rnot), roll = "nearest"]$ods
+}
+
 
 zika_parms <- function(rnot = 1.1,
                        num_intros = 1,
@@ -40,19 +50,20 @@ intro_loglike <- function(parms) {
          nbinom = dnbinom(x = 0, mu = parms$rnot, size = parms$overdispersion, log=T)*parms$num_intros)
 }
 
-scaling_loglike <- function(alpha, parms){
+scaling_loglike <- function(alpha, parms, disp_dt){
   ## Returns the log likelihood through time for quarter
   ## Rnots and introductions.
   rnots <- parms$rnot * alpha
-  ods <- unlist(purrr::map(rnots, ~find_overdispersion(.x)))
+  # ods <- unlist(purrr::map(rnots, ~find_overdispersion(.x)))
+  ods <- find_rnot_ods(rnots, disp_dt)
   parms <- subs_parms(list(rnot=rnots, overdispersion=ods), parms)
   -sum(intro_loglike(parms))
 }
 
-get_alpha_ci <- function(parms, sig_level=0.01){
+get_alpha_ci <- function(parms, disp_dt, sig_level=0.01){
   # For a set of parameters, finds the possible alphas
   alphas <- seq(0,1, length.out = 5000)
-  nllikes <- unlist(purrr::map(alphas, ~scaling_loglike(., parms=parms)))
+  nllikes <- unlist(purrr::map(alphas, ~scaling_loglike(., parms=parms, disp_dt)))
   likes <- exp(-nllikes)
 
   ## Extract the largest alpha that fulfills
@@ -61,16 +72,18 @@ get_alpha_ci <- function(parms, sig_level=0.01){
   data_frame(mle=0, low=0, high=high)
 }
 
-get_alpha_likes <- function(parms){
+get_alpha_likes <- function(parms, disp_dt){
   # Returns likelihood values for a variety of alphas, so that distributions can be calculated post-hoc
   alphas <- seq(0, 1, length.out = 5000)
-  nllikes <- unlist(purrr::map(alphas, ~scaling_loglike(., parms=parms)))
+  nllikes <- unlist(purrr::map(alphas, ~scaling_loglike(., parms=parms, disp_dt)))
   likes <- exp(-nllikes)
 
   df <- data_frame(alpha = alphas, likelihood = likes)
   colnames(df)[2] <- as.character(parms$date)
   df
 }
+
+
 
 
 get_rnot_ll_ci <- function(alpha, num_intros, distribution, overdispersion=1, rnots=NULL) {
@@ -115,96 +128,77 @@ lprior <- function(parms){
   dnorm(parms$rnot, mean = parms$prior_mu, sd = parms$prior_sd, log = T)
 }
 
-llike_prior <- function(rnot, ref_parms){
-  parms <- subs_parms(c(rnot=rnot), ref_parms)
-  log(intro_like(parms)) + lprior(parms)
-}
 
 
 
-rnot_mcmc <- function(parms,
-                      rand_init=T,
-                      iters,
-                      tuning,
-                      burnin,
-                      thin = 10){
-  if(iters %% thin != 0 ){
-    stop("Thin needs to be a multiple of iters")
-  }
 
-  samples <- matrix(nrow=iters/thin, ncol=2)
-  curr_rnot <- runif(n = 1, min = 0, max = 2)
 
-  curr_lik <- llike_prior(curr_rnot, parms)
 
-  accept <- 0
-  for(ii in 1:(iters+burnin)){
-    prop_rnot <- exp(rnorm(1, mean = log(curr_rnot), sd = tuning))
-    prop_lik <- llike_prior(prop_rnot, parms)
 
-    lmh <- prop_lik - curr_lik
 
-    if ( (lmh >= 0) | (runif(n = 1,min = 0, max = 1) <= exp(lmh)) ) {
-      curr_rnot <- prop_rnot
-      accept <- accept + 1
-      curr_lik <- prop_lik
-    }
-    if(ii>burnin & (ii-burnin) %% thin==0) {
-      samples[(ii-burnin)/thin,] <- c(curr_rnot, curr_lik)
-    }
-  }
-  aratio <- accept/(iters+burnin)
-  colnames(samples) <- c("r_not", "ll")
-  samples <- as.mcmc(samples)
-  return(list(samples, aratio = aratio))
-}
 
-get_secondary_above_20 <- function(rnot){
-  # Takes in an rnot value and returns the probability of seeing
-  # > 20 secondary cases from that rnot
-  p1 <- c(0.425806451612903, 0.8458765530605259)
-  p2 <- c(4.341935483870967, 3.297197366921235)
 
-  slope <- (p2[2] - p1[2]) / (p2[1] - p1[1])
-  yint <- - slope * p1[1] + p1[2]
-  if(rnot < yint){
-    warning("R0 is low and returning zero")
-    return(0)
-  }
-  (rnot - yint) / slope / 100
-}
 
-find_overdispersion <- function(rnot){
-  # Find the overdispersion parameter for a given R0
-  prob_above <- get_secondary_above_20(rnot)
 
-  compare_ps <- function(x, prob_above, rnot){
-    pnbinom(q = 20, mu = rnot, size = x, lower.tail = FALSE) - prob_above
-  }
-  # print(rnot)
-  if(prob_above == 0){
 
-    if(rnot==0) {
-      return(1e-16)
-    }
-    # browser()
-    seq_lower <- seq(1e-16, 0.5,length.out=1000)
-    low <- -1
-    prob_above <- 1e-5
-    ps <- compare_ps(seq_lower, prob_above, rnot)
-    while(max(ps, na.rm=T) < 0){
-      prob_above <- prob_above/10
-      ps <- compare_ps(seq_lower, prob_above, rnot)
-    }
-    low <- seq_lower[which.max(ps)]
-    # print(rnot)
-    # browser()
-    overdisp <- uniroot(f = compare_ps, interval = c(low, 1),  rnot=rnot, prob_above= prob_above)
-  } else {
-    seq_lower <- seq(0,0.5,length.out=1000)
-    low <- seq_lower[which(compare_ps(seq_lower, prob_above, rnot) >=0 )[1]]
-    overdisp <- uniroot(f = compare_ps, interval = c(low, 10), rnot=rnot, prob_above=prob_above)
-  }
+# llike_prior <- function(rnot, ref_parms){
+#   parms <- subs_parms(c(rnot=rnot), ref_parms)
+#   log(intro_like(parms)) + lprior(parms)
+# }
 
-  overdisp$root
-}
+
+
+# rnot_mcmc <- function(parms,
+#                       rand_init=T,
+#                       iters,
+#                       tuning,
+#                       burnin,
+#                       thin = 10){
+#   if(iters %% thin != 0 ){
+#     stop("Thin needs to be a multiple of iters")
+#   }
+#
+#   samples <- matrix(nrow=iters/thin, ncol=2)
+#   curr_rnot <- runif(n = 1, min = 0, max = 2)
+#
+#   curr_lik <- llike_prior(curr_rnot, parms)
+#
+#   accept <- 0
+#   for(ii in 1:(iters+burnin)){
+#     prop_rnot <- exp(rnorm(1, mean = log(curr_rnot), sd = tuning))
+#     prop_lik <- llike_prior(prop_rnot, parms)
+#
+#     lmh <- prop_lik - curr_lik
+#
+#     if ( (lmh >= 0) | (runif(n = 1,min = 0, max = 1) <= exp(lmh)) ) {
+#       curr_rnot <- prop_rnot
+#       accept <- accept + 1
+#       curr_lik <- prop_lik
+#     }
+#     if(ii>burnin & (ii-burnin) %% thin==0) {
+#       samples[(ii-burnin)/thin,] <- c(curr_rnot, curr_lik)
+#     }
+#   }
+#   aratio <- accept/(iters+burnin)
+#   colnames(samples) <- c("r_not", "ll")
+#   samples <- as.mcmc(samples)
+#   return(list(samples, aratio = aratio))
+# }
+
+# library(Rcpp)
+# sourceCpp("cpp/cpp_fitting_fxns.cpp")
+#
+#
+#
+#
+# find_overdispersion_R(1.5)
+#
+# all_equal(compare_ps(seq(0,0.5,length.out=1000), 0.01470807, 12),
+#           compare_ps_R(seq(0,0.5,length.out=1000), 0.01470807, 12))
+
+
+
+# library(Rcpp)
+#
+# sourceCpp("cpp/cpp_fitting_fxns.cpp")
+

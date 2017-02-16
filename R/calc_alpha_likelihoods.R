@@ -28,11 +28,9 @@ if(length(args)>0)  { ## Then cycle through each element of the list and evaluat
   }
 }
 
-print(rnot_value)
-print(single_rnot)
-
-
 sapply(c("R/fitting_fxns.R", "R/load_data.R", "R/scaling_analysis_fxns.R"), source)
+
+load("data_produced/dispersion_dt.rda")
 
 if(single_rnot){
   rnot_col_name <- switch(rnot_value, low = "low_r0", high = "high_r0", med = "med_r0", stop("Incorrect rnot value supplied, should be 'low', 'med', or 'high'."))
@@ -49,7 +47,7 @@ if(single_rnot){
   stop("Can't handle distributional Rnot estimation yet.")
 }
 
-est_alphas <- purrr::map(daily_parms, get_alpha_likes)
+est_alphas <- purrr::map(daily_parms, get_alpha_likes, disp_dt=dispersion_dt)
 
 est_alphas[2:length(est_alphas)] <- est_alphas[2:length(est_alphas)] %>% map(function(x) x[,2])
 
