@@ -1,9 +1,9 @@
 ###################################
 ## Script for running analysis on texas county scaling likelihoods
+## Not really used anymore
 ###################################
 rm(list=ls())
 library(tidyverse)
-library(cowplot)
 library(stringr)
 library(lubridate)
 
@@ -24,10 +24,12 @@ daily_parms <- unique(tx_data$notification_date) %>%
 
 # get_alpha_ci(parms = daily_parms[[110]], sig_level = 0.05)
 
+load("data_produced/dispersion_dt.rda")
+est_alphas <- purrr::map(daily_parms[1:2], get_alpha_ci, disp_dt = dispersion_dt,sig_level=0.05)
 ## Estimate alphas for each day that has an importation
 library(profvis)
 profvis({
-  est_alphas <- purrr::map(daily_parms[1:2], get_alpha_ci, sig_level=0.05)
+  est_alphas <- purrr::map(daily_parms[1:2], get_alpha_likes, disp_dt = dispersion_dt)
 })
 est_alphas <- purrr::map(daily_parms, get_alpha_ci, sig_level=0.01)
 

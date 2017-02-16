@@ -1,7 +1,7 @@
 #################################################
 ## Functions for fitting R0s
 #################################################
-
+library(data.table)
 subs_parms <- function(sub_parms=NULL,
                        ref_parms) {
   within(ref_parms, {

@@ -109,7 +109,7 @@ setattr(dispersion_dt, "sorted", "rnots")
 save(dispersion_dt, file = "data_produced/dispersion_dt.rda")
 
 ##################################
-## Testing speed
+## Testing speed of various lookups
 ##################################
 
 # find_nearest_basic <- function(rnot, disp_df){
