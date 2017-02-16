@@ -2,6 +2,7 @@ rm(list=ls())
 library(tidyverse)
 library(stringr)
 library(lubridate)
+library(data.table)
 # library(bbmle)
 
 base_url <- "zikaEstimatoR"
