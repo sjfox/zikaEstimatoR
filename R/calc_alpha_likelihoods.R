@@ -31,8 +31,6 @@ if(grepl('tacc', Sys.info()['nodename'])) setwd(file.path("/home1", "02958", "sj
 
 sapply(c("R/fitting_fxns.R", "R/load_data.R", "R/scaling_analysis_fxns.R"), source)
 
-load("data_produced/dispersion_dt.rda")
-
 if(single_rnot){
   rnot_col_name <- switch(rnot_value, low = "low_r0", high = "high_r0", med = "med_r0", stop("Incorrect rnot value supplied, should be 'low', 'med', or 'high'."))
   tx_data <- tx_imports %>% mutate(month = factor(month, levels = month.abb)) %>%
@@ -45,7 +43,11 @@ if(single_rnot){
   daily_parms <- unique(tx_data$notification_date) %>%
     purrr::map(~get_alpha_parms(tx_data, curr_date=.x))
 } else{
-  stop("Can't handle distributional Rnot estimation yet.")
+  load("data_produced/county_r0_distributions.rda")
+  tx_data <- tx_imports  %>% mutate(month = factor(month, levels = month.abb))
+
+  daily_parms <- unique(tx_data$notification_date) %>%
+    purrr::map(~get_alpha_parms_r0_dist(tx_data, curr_date=.x, county_r0_dists = county_r0_distributions))
 }
 
 est_alphas <- purrr::map(daily_parms, get_alpha_likes, disp_dt=dispersion_dt)
@@ -54,4 +56,9 @@ est_alphas[2:length(est_alphas)] <- est_alphas[2:length(est_alphas)] %>% map(fun
 
 est_alphas_df <- est_alphas %>% bind_cols()
 
-save(est_alphas_df, file = file.path("..","workfolder","data","ZikaEstimatoR_data", paste0("alpha_like_single_", rnot_col_name, ".rda")))
+if(single_rnot){
+  save(est_alphas_df, file = file.path("..","workfolder","data","ZikaEstimatoR_data", paste0("alpha_like_single_", rnot_col_name, ".rda")))
+} else{
+  save(est_alphas_df, file = file.path("..","workfolder","data","ZikaEstimatoR_data", paste0("alpha_like_rnot_dist.rda")))
+}
+

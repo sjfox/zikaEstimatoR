@@ -15,6 +15,11 @@ tx_imports <- tx_imports %>% mutate(notification_date = mdy(`First Notification 
          county = tolower(str_replace_all(County, " County", ""))) %>%
   select(county, notification_date, month)
 
+########################################
+## Dispersion table
+########################################
+
+load("data_produced/dispersion_dt.rda")
 
 ########################################
 ## Temperature Data

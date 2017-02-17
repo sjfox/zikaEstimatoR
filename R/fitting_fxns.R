@@ -27,7 +27,8 @@ zika_parms <- function(rnot = 1.1,
                        prior_sd = 1000,
                        distribution = "pois",
                        overdispersion=1,
-                       date = NA){
+                       date = NA,
+                       rnot_dist=NA){
   return(as.list(environment()))
 }
 
@@ -50,30 +51,32 @@ intro_loglike <- function(parms) {
 }
 
 scaling_loglike <- function(alpha, parms, disp_dt){
-  ## Returns the log likelihood through time for quarter
-  ## Rnots and introductions.
-  rnots <- parms$rnot * alpha
-  # ods <- unlist(purrr::map(rnots, ~find_overdispersion(.x)))
-  ods <- find_rnot_ods(rnots, disp_dt)
-  parms <- subs_parms(list(rnot=rnots, overdispersion=ods), parms)
-  -sum(intro_loglike(parms))
+  ## Returns the Negative log likelihood for set of parameters
+
+  if(!is.na(parms$rnot)){
+    rnots <- parms$rnot * alpha
+    # ods <- unlist(purrr::map(rnots, ~find_overdispersion(.x)))
+    ods <- find_rnot_ods(rnots, disp_dt)
+    parms <- subs_parms(list(rnot=rnots, overdispersion=ods), parms)
+    -sum(intro_loglike(parms))
+  } else{
+    rnot_dist <- parms$rnot_dist * alpha
+    log_likes <- vector("numeric", ncol(rnot_dist))
+    for(col in 1:ncol(rnot_dist)){
+      rnots <- rnot_dist[,col]
+      ods <- find_rnot_ods(rnots, disp_dt)
+      parms <- subs_parms(list(rnot=rnots, overdispersion=ods), parms)
+      log_likes[col] <- -sum(intro_loglike(parms))
+    }
+    return(median(log_likes))
+  }
 }
 
-get_alpha_ci <- function(parms, disp_dt, sig_level=0.01){
-  # For a set of parameters, finds the possible alphas
-  alphas <- seq(0,1, length.out = 5000)
-  nllikes <- unlist(purrr::map(alphas, ~scaling_loglike(., parms=parms, disp_dt)))
-  likes <- exp(-nllikes)
 
-  ## Extract the largest alpha that fulfills
-  high <- alphas[rev(which(likes > sig_level))[1]]
-
-  data_frame(mle=0, low=0, high=high)
-}
 
 get_alpha_likes <- function(parms, disp_dt){
   # Returns likelihood values for a variety of alphas, so that distributions can be calculated post-hoc
-  alphas <- seq(0, 1, length.out = 5000)
+  alphas <- seq(0, 1, length.out=5000)
   nllikes <- unlist(purrr::map(alphas, ~scaling_loglike(., parms=parms, disp_dt)))
   likes <- exp(-nllikes)
 
@@ -85,43 +88,6 @@ get_alpha_likes <- function(parms, disp_dt){
 
 
 
-get_rnot_ll_ci <- function(alpha, num_intros, distribution, overdispersion=1, rnots=NULL) {
-  ## Returns the median and % confidence interval for likelihood of rnot based
-  ## On number of introductions alone
-
-  if(num_intros==0){
-    warning("With 0 Introductions you have no information")
-    return(data.frame(low = NA, median = NA,  high = NA))
-  }
-  if(length(num_intros)!=1){
-    stop("Need to send single introduction number")
-  }
-
-
-  if(!is.null(rnots)){
-    n <- length(rnots)
-    ods <- overdispersion
-  } else {
-    n <- 10000
-    max_rnot <- 10
-    rnots <- seq(0, max_rnot, length.out = n)
-    ods <- unlist(purrr::map(rnots, ~find_overdispersion(.x)))
-  }
-
-  parms <- subs_parms(list(rnot=rnots, num_intros=num_intros, distribution=distribution, overdispersion=ods), zika_parms())
-  likelihoods <- intro_like(parms)
-
-  # Find index for the low, mle and high
-  low_ind <- 1
-  mle_ind <- which.max(likelihoods)
-  high_ind <- which(likelihoods < alpha)[1]
-  if(length(high_ind)==0){
-    high_ind <- n
-  }
-
-  data.frame(low = rnots[low_ind], mle = rnots[mle_ind],  high = rnots[high_ind])
-}
-
 
 lprior <- function(parms){
   dnorm(parms$rnot, mean = parms$prior_mu, sd = parms$prior_sd, log = T)
@@ -130,14 +96,140 @@ lprior <- function(parms){
 
 
 
+############################################################################
+##
+############################################################################
+
+get_secondary_above_20 <- function(rnot){
+  # Takes in an rnot value and returns the probability of seeing
+  # > 20 secondary cases from that rnot
+  p1 <- c(0.425806451612903, 0.8458765530605259)
+  p2 <- c(4.341935483870967, 3.297197366921235)
+
+  slope <- (p2[2] - p1[2]) / (p2[1] - p1[1])
+  yint <- - slope * p1[1] + p1[2]
+  if(rnot < yint){
+    # warning("R0 is low and returning zero") # Happens very often, so not worth warning
+    return(0)
+  }
+
+  prob <- (rnot - yint) / slope / 100
+  if(prob > 1){
+    return(1)
+  }
+  return(prob)
+}
+
+find_overdispersion <- function(rnot){
+  # Find the overdispersion parameter for a given R0
+  prob_above <- get_secondary_above_20(rnot)
+
+  compare_ps <- function(x, prob_above, rnot){
+    pnbinom(q = 20, mu = rnot, size = x, lower.tail = FALSE) - prob_above
+  }
+  # print(rnot)
+  if(prob_above == 0){
+    ## If Rnot is very low
+    if(rnot==0) {
+      return(1e-16)
+    }
+    # browser()
+    seq_lower <- seq(1e-16, 0.5,length.out=1000)
+    low <- -1
+    prob_above <- 1e-5
+    ps <- compare_ps(seq_lower, prob_above, rnot)
+    while(max(ps, na.rm=T) < 0){
+      prob_above <- prob_above/10
+      ps <- compare_ps(seq_lower, prob_above, rnot)
+    }
+    low <- seq_lower[which.max(ps)]
+    # print(rnot)
+    # browser()
+    overdisp <- uniroot(f = compare_ps, interval = c(low, 1),  rnot=rnot, prob_above= prob_above)
+  } else {
+    if(prob_above >= (1-1e-4) ){
+      ## If rnot is very large
+      seq_lower <- seq(0,100,length.out=1000)
+      overdisp = list(root = seq_lower[which(abs(compare_ps(seq_lower, prob_above, rnot)) <= 1e-06)[1]])
+    } else{
+      seq_lower <- seq(0,100,length.out=10000)
+      ps <- compare_ps(seq_lower, prob_above, rnot)
+
+      if(all(diff(ps) > 0)){
+        ## If Rnot is large but not very large
+        overdisp <- uniroot(f = compare_ps, interval = c(0, 100), rnot=rnot, prob_above=prob_above)
+      } else{
+        ## If Rnot isn't miniscule, but is small (~0.5-1.5)
+        ## Begin the search from the first positive difference.
+        max_p <- which.max(ps)
+        # browser()
+        overdisp <- try(uniroot(f = compare_ps, interval = c(0, seq_lower[max_p]), rnot=rnot, prob_above=prob_above), silent = TRUE)
+        if(class(overdisp) == "try-error"){
+          overdisp <- uniroot(f = compare_ps, interval = c(seq_lower[max_p], 100), rnot=rnot, prob_above=prob_above)
+        }
+      }
+    }
+
+  }
+
+  overdisp$root
+}
 
 
 
 
 
 
+# get_rnot_ll_ci <- function(alpha, num_intros, distribution, overdispersion=1, rnots=NULL) {
+#   ## Returns the median and % confidence interval for likelihood of rnot based
+#   ## On number of introductions alone
+#
+#   if(num_intros==0){
+#     warning("With 0 Introductions you have no information")
+#     return(data.frame(low = NA, median = NA,  high = NA))
+#   }
+#   if(length(num_intros)!=1){
+#     stop("Need to send single introduction number")
+#   }
+#
+#
+#   if(!is.null(rnots)){
+#     n <- length(rnots)
+#     ods <- overdispersion
+#   } else {
+#     n <- 10000
+#     max_rnot <- 10
+#     rnots <- seq(0, max_rnot, length.out = n)
+#     ods <- unlist(purrr::map(rnots, ~find_overdispersion(.x)))
+#   }
+#
+#   parms <- subs_parms(list(rnot=rnots, num_intros=num_intros, distribution=distribution, overdispersion=ods), zika_parms())
+#   likelihoods <- intro_like(parms)
+#
+#   # Find index for the low, mle and high
+#   low_ind <- 1
+#   mle_ind <- which.max(likelihoods)
+#   high_ind <- which(likelihoods < alpha)[1]
+#   if(length(high_ind)==0){
+#     high_ind <- n
+#   }
+#
+#   data.frame(low = rnots[low_ind], mle = rnots[mle_ind],  high = rnots[high_ind])
+# }
 
 
+
+# get_alpha_ci <- function(parms, disp_dt, sig_level=0.01){
+#   # For a set of parameters, finds the possible alphas
+#   alphas <- seq(0,1, length.out = 5000)
+#   nllikes <- unlist(purrr::map(alphas, ~scaling_loglike(., parms=parms, disp_dt)))
+#   likes <- exp(-nllikes)
+#
+#   ## Extract the largest alpha that fulfills
+#   high <- alphas[rev(which(likes > sig_level))[1]]
+#
+#   data_frame(mle=0, low=0, high=high)
+# }
 
 
 # llike_prior <- function(rnot, ref_parms){

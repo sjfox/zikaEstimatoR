@@ -3,8 +3,10 @@
 ## Spencer Fox Jan 23, 2017
 ##############################
 rm(list=ls())
+
 library(cowplot)
 library(tidyverse)
+library(maps)
 # library(stringr)
 sapply(c("R/load_data.R", "R/fitting_fxns.R"), source)
 
@@ -65,26 +67,27 @@ save_plot("ms_figs/likelihood_ex.png", import_example_plot, base_height = 4, bas
 ###############################
 ## August R0 estimates for the states plot
 ###############################
-
-
 load("data_produced/calculated_tx_county_rnots.rda")
+load("data_produced/statewide_alphas_through_time.rda")
 
-month_data <- tx_county_rnots %>% gather(rnot, value, low_r0:high_r0) %>%
-  filter(month == "Nov")
-
-rnot_plot <- map_data(map = "county") %>% filter(region=="texas") %>%
+month_end_result_df <- map_data(map = "county") %>% filter(region=="texas") %>%
   mutate(subregion = if_else(subregion=="de witt", "dewitt", subregion)) %>%
-  left_join(month_data, by=c("subregion" = "county")) %>%
-  mutate(rnot = case_when(.$rnot == "low_r0" ~ "Low", .$rnot == "med_r0" ~ "Median", .$rnot == "high_r0" ~ "High")) %>%
-  mutate(rnot = factor(rnot, levels = c("Low", "Median", "High")),
-         value = if_else(value<0.01, 0.0, value)) %>%
-  ggplot(aes(x=long, y=lat, fill = value, group = subregion)) + facet_wrap(~rnot)+
-    geom_polygon(color = "gray", size=0.1) +
-    scale_fill_gradient2(na.value="black", low = "blue", mid = "white", high = "red", trans="log10", midpoint=0) +
-    guides(fill = guide_colorbar(title=expression("R"[0]))) +
-    theme_nothing()
+  left_join(tx_county_rnots, by=c("subregion" = "county")) %>%
+  mutate(scaled_rnot = tail(est_alphas_df,1)$high*med_r0,
+         scaled_rnot = if_else(scaled_rnot<0.001, 0.001, scaled_rnot))
 
-save_plot("figs/november_rnot_distribution.pdf", plot = rnot_plot, base_height = 3, base_aspect_ratio = 3)
+rnot_plot <- month_end_result_df %>%
+  ggplot(aes(x=long, y=lat, fill = scaled_rnot, group = subregion)) + facet_wrap(~month, nrow = 2)+
+    geom_polygon(color = "gray", size=0.1) +
+    theme_nothing() +
+    scale_fill_gradient(name = expression("R"[0]), trans="log10", limits = c(0.001,0.1),
+                       low="white", high="blue",
+                        breaks= c(0.001, 0.01, 0.1),
+                        guide = guide_colorbar(title=expression("R"[0]), barheight=10))
+rnot_plot
+
+
+save_plot("ms_figs/scaled_monthly_r0_estimates.png", plot = rnot_plot, base_height = 4, base_aspect_ratio = 3)
 
 ###############################
 ## Monthly R0 for state
