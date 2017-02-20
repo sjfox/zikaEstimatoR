@@ -43,6 +43,7 @@ intro_like <- function(parms) {
          pois = dpois(x = 0, lambda = parms$rnot)^parms$num_intros,
          nbinom = dnbinom(x = 0, mu = parms$rnot, size = parms$overdispersion)^parms$num_intros)
 }
+
 intro_loglike <- function(parms) {
   ## Calculates the likelihood based on an R0 and number of introductions
   switch(parms$distribution,
@@ -62,10 +63,12 @@ scaling_loglike <- function(alpha, parms, disp_dt){
   } else{
     rnot_dist <- parms$rnot_dist * alpha
     log_likes <- vector("numeric", ncol(rnot_dist))
+    ods <- matrix(find_rnot_ods(unlist(rnot_dist), disp_dt), nrow(rnot_dist))
+
     for(col in 1:ncol(rnot_dist)){
-      rnots <- rnot_dist[,col]
-      ods <- find_rnot_ods(rnots, disp_dt)
-      parms <- subs_parms(list(rnot=rnots, overdispersion=ods), parms)
+      # parms <- subs_parms(list(rnot=rnot_dist[,col], overdispersion=ods[,col]), parms)
+      parms$rnot <- rnot_dist[,col]
+      parms$overdispersion <- ods[,col]
       log_likes[col] <- -sum(intro_loglike(parms))
     }
     return(median(log_likes))
@@ -76,7 +79,7 @@ scaling_loglike <- function(alpha, parms, disp_dt){
 
 get_alpha_likes <- function(parms, disp_dt){
   # Returns likelihood values for a variety of alphas, so that distributions can be calculated post-hoc
-  alphas <- seq(0, 1, length.out=5000)
+  alphas <- seq(0, 1, length.out=1000)
   nllikes <- unlist(purrr::map(alphas, ~scaling_loglike(., parms=parms, disp_dt)))
   likes <- exp(-nllikes)
 
