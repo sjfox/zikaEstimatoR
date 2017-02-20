@@ -1,24 +1,28 @@
 #################################################
 ## Functions for fitting R0s
 #################################################
-subs_parms <- function(sub_parms=NULL,
-                       ref_parms) {
-  within(ref_parms, {
+require(Rcpp)
 
-    for(nm in names(sub_parms)) {
-      assign(nm, sub_parms[[nm]])
-    }
-    rm(nm)
-  })
-}
+sourceCpp("cpp/cpp_fitting_fxns.cpp")
 
-find_rnot_ods <- function(rnot, disp_dt){
-  ## Takes in a vector of rnot values and returns
-  ## The dispersions for nbinom distribution
-  ## disp_dt must be sorted data table, with one column as rnot and other as ods
-  ## Can be obtained by running the calc_dispersion_table.R script
-  disp_dt[J(rnot), roll = "nearest"]$ods
-}
+# subs_parms <- function(sub_parms=NULL,
+#                        ref_parms) {
+#   within(ref_parms, {
+#
+#     for(nm in names(sub_parms)) {
+#       assign(nm, sub_parms[[nm]])
+#     }
+#     rm(nm)
+#   })
+# }
+
+# find_rnot_ods <- function(rnot, disp_dt){
+#   ## Takes in a vector of rnot values and returns
+#   ## The dispersions for nbinom distribution
+#   ## disp_dt must be sorted data table, with one column as rnot and other as ods
+#   ## Can be obtained by running the calc_dispersion_table.R script
+#   disp_dt[J(rnot), roll = "nearest"]$ods
+# }
 
 
 zika_parms <- function(rnot = 1.1,

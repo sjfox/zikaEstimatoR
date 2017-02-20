@@ -65,7 +65,7 @@ save_plot("ms_figs/likelihood_ex.png", import_example_plot, base_height = 4, bas
 
 
 ###############################
-## August R0 estimates for the states plot
+## Final R0 estimates for the states plot by month -- Median
 ###############################
 load("data_produced/calculated_tx_county_rnots.rda")
 load("data_produced/statewide_alphas_through_time.rda")
@@ -88,6 +88,31 @@ rnot_plot
 
 
 save_plot("ms_figs/scaled_monthly_r0_estimates.png", plot = rnot_plot, base_height = 4, base_aspect_ratio = 3)
+
+###############################
+## Final R0 estimates for the states by month plot -- high
+###############################
+
+month_end_result_df <- map_data(map = "county") %>% filter(region=="texas") %>%
+  mutate(subregion = if_else(subregion=="de witt", "dewitt", subregion)) %>%
+  left_join(tx_county_rnots, by=c("subregion" = "county")) %>%
+  mutate(scaled_rnot = tail(est_alphas_df,1)$high*high_r0,
+         scaled_rnot = if_else(scaled_rnot<0.001, 0.001, scaled_rnot))
+
+rnot_plot <- month_end_result_df %>%
+  ggplot(aes(x=long, y=lat, fill = scaled_rnot, group = subregion)) + facet_wrap(~month, nrow = 2)+
+  geom_polygon(color = "gray", size=0.1) +
+  theme_nothing() +
+  scale_fill_gradient(name = expression("R"[0]), trans="log10", limits = c(0.001,1),
+                      low="white", high="blue",
+                      breaks= c(0.01, 0.1, 1),
+                      guide = guide_colorbar(title=expression("R"[0]), barheight=10))
+rnot_plot
+
+
+save_plot("ms_figs/scaled_upperbound_monthly_r0_estimates.png", plot = rnot_plot, base_height = 4, base_aspect_ratio = 3)
+
+
 
 ###############################
 ## Monthly R0 for state

@@ -103,15 +103,15 @@ hist(offset, breaks=100)
 ################################
 
 dispersion_df <- data_frame(rnots = rnots, ods = ods)
-dispersion_dt <- data.table(dispersion_df, val=rnots)
-setattr(dispersion_dt, "sorted", "rnots")
+# dispersion_dt <- data.table(dispersion_df, val=rnots)
+# setattr(dispersion_dt, "sorted", "rnots")
 
-save(dispersion_dt, file = "data_produced/dispersion_dt.rda")
+save(dispersion_df, file = "data_produced/dispersion_df.rda")
 
 ##################################
 ## Testing speed of various lookups
 ##################################
-
+## Switched to using data_frame, since it's sorted, and runs quickly on new Rcpp version. faster than data.table
 # find_nearest_basic <- function(rnot, disp_df){
 #   find_nearest <- function(rnot, disp_df){
 #     disp_df$ods[which.min(abs(disp_df$rnots - rnot))]
