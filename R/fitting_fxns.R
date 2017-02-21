@@ -5,26 +5,6 @@ require(Rcpp)
 
 sourceCpp("cpp/cpp_fitting_fxns.cpp")
 
-# subs_parms <- function(sub_parms=NULL,
-#                        ref_parms) {
-#   within(ref_parms, {
-#
-#     for(nm in names(sub_parms)) {
-#       assign(nm, sub_parms[[nm]])
-#     }
-#     rm(nm)
-#   })
-# }
-
-# find_rnot_ods <- function(rnot, disp_dt){
-#   ## Takes in a vector of rnot values and returns
-#   ## The dispersions for nbinom distribution
-#   ## disp_dt must be sorted data table, with one column as rnot and other as ods
-#   ## Can be obtained by running the calc_dispersion_table.R script
-#   disp_dt[J(rnot), roll = "nearest"]$ods
-# }
-
-
 zika_parms <- function(rnot = 1.1,
                        num_intros = 1,
                        prior_mu = 1,
@@ -36,55 +16,35 @@ zika_parms <- function(rnot = 1.1,
   return(as.list(environment()))
 }
 
-normalize_vector <- function(values){
-  ## Normalizes a vector to sum to 1
-  values/sum(values,na.rm = T)
-}
-
-intro_like <- function(parms) {
-  ## Calculates the likelihood based on an R0 and number of introductions
-  switch(parms$distribution,
-         pois = dpois(x = 0, lambda = parms$rnot)^parms$num_intros,
-         nbinom = dnbinom(x = 0, mu = parms$rnot, size = parms$overdispersion)^parms$num_intros)
-}
-
-intro_loglike <- function(parms) {
-  ## Calculates the likelihood based on an R0 and number of introductions
-  switch(parms$distribution,
-         pois = dpois(x = 0, lambda = parms$rnot, log = T)*parms$num_intros,
-         nbinom = dnbinom(x = 0, mu = parms$rnot, size = parms$overdispersion, log=T)*parms$num_intros)
-}
-
-scaling_loglike <- function(alpha, parms, disp_dt){
+scaling_loglike <- function(alpha, parms, disp_df){
   ## Returns the Negative log likelihood for set of parameters
 
   if(!is.na(parms$rnot)){
     rnots <- parms$rnot * alpha
     # ods <- unlist(purrr::map(rnots, ~find_overdispersion(.x)))
-    ods <- find_rnot_ods(rnots, disp_dt)
+    ods <- find_rnot_ods(rnots, disp_df)
     parms <- subs_parms(list(rnot=rnots, overdispersion=ods), parms)
     -sum(intro_loglike(parms))
   } else{
     rnot_dist <- parms$rnot_dist * alpha
     log_likes <- vector("numeric", ncol(rnot_dist))
-    ods <- matrix(find_rnot_ods(unlist(rnot_dist), disp_dt), nrow(rnot_dist))
-
+    ods <- matrix(find_rnot_ods(unlist(rnot_dist), disp_df), nrow(rnot_dist))
     for(col in 1:ncol(rnot_dist)){
-      # parms <- subs_parms(list(rnot=rnot_dist[,col], overdispersion=ods[,col]), parms)
       parms$rnot <- rnot_dist[,col]
       parms$overdispersion <- ods[,col]
       log_likes[col] <- -sum(intro_loglike(parms))
     }
+    parms$rnot <- NA
     return(median(log_likes))
   }
 }
 
 
 
-get_alpha_likes <- function(parms, disp_dt){
+get_alpha_likes <- function(parms, disp_df){
   # Returns likelihood values for a variety of alphas, so that distributions can be calculated post-hoc
   alphas <- seq(0, 1, length.out=1000)
-  nllikes <- unlist(purrr::map(alphas, ~scaling_loglike(., parms=parms, disp_dt)))
+  nllikes <- unlist(purrr::map(alphas, ~scaling_loglike(., parms=parms, disp_df)))
   likes <- exp(-nllikes)
 
   df <- data_frame(alpha = alphas, likelihood = likes)
@@ -92,19 +52,8 @@ get_alpha_likes <- function(parms, disp_dt){
   df
 }
 
-
-
-
-
-lprior <- function(parms){
-  dnorm(parms$rnot, mean = parms$prior_mu, sd = parms$prior_sd, log = T)
-}
-
-
-
-
 ############################################################################
-##
+## Fitting the Rnot distribution
 ############################################################################
 
 get_secondary_above_20 <- function(rnot){
@@ -182,10 +131,49 @@ find_overdispersion <- function(rnot){
   overdisp$root
 }
 
+#################################################
+## No longer used
+#################################################
+# normalize_vector <- function(values){
+#   ## Normalizes a vector to sum to 1
+#   values/sum(values,na.rm = T)
+# }
 
+# intro_like <- function(parms) {
+#   ## Calculates the likelihood based on an R0 and number of introductions
+#   switch(parms$distribution,
+#          pois = dpois(x = 0, lambda = parms$rnot)^parms$num_intros,
+#          nbinom = dnbinom(x = 0, mu = parms$rnot, size = parms$overdispersion)^parms$num_intros)
+# }
 
+# intro_loglike <- function(parms) {
+#   ## Calculates the likelihood based on an R0 and number of introductions
+#   switch(parms$distribution,
+#          pois = dpois(x = 0, lambda = parms$rnot, log = T)*parms$num_intros,
+#          nbinom = dnbinom(x = 0, mu = parms$rnot, size = parms$overdispersion, log=T)*parms$num_intros)
+# }
+# lprior <- function(parms){
+#   dnorm(parms$rnot, mean = parms$prior_mu, sd = parms$prior_sd, log = T)
+# }
 
+# subs_parms <- function(sub_parms=NULL,
+#                        ref_parms) {
+#   within(ref_parms, {
+#
+#     for(nm in names(sub_parms)) {
+#       assign(nm, sub_parms[[nm]])
+#     }
+#     rm(nm)
+#   })
+# }
 
+# find_rnot_ods <- function(rnot, disp_df){
+#   ## Takes in a vector of rnot values and returns
+#   ## The dispersions for nbinom distribution
+#   ## disp_df must be sorted data table, with one column as rnot and other as ods
+#   ## Can be obtained by running the calc_dispersion_table.R script
+#   disp_df[J(rnot), roll = "nearest"]$ods
+# }
 
 # get_rnot_ll_ci <- function(alpha, num_intros, distribution, overdispersion=1, rnots=NULL) {
 #   ## Returns the median and % confidence interval for likelihood of rnot based
@@ -226,10 +214,10 @@ find_overdispersion <- function(rnot){
 
 
 
-# get_alpha_ci <- function(parms, disp_dt, sig_level=0.01){
+# get_alpha_ci <- function(parms, disp_df, sig_level=0.01){
 #   # For a set of parameters, finds the possible alphas
 #   alphas <- seq(0,1, length.out = 5000)
-#   nllikes <- unlist(purrr::map(alphas, ~scaling_loglike(., parms=parms, disp_dt)))
+#   nllikes <- unlist(purrr::map(alphas, ~scaling_loglike(., parms=parms, disp_df)))
 #   likes <- exp(-nllikes)
 #
 #   ## Extract the largest alpha that fulfills

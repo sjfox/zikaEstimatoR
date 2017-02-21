@@ -19,7 +19,7 @@ tx_imports <- tx_imports %>% mutate(notification_date = mdy(`First Notification 
 ## Dispersion table
 ########################################
 
-load("data_produced/dispersion_dt.rda")
+load("data_produced/dispersion_df.rda")
 
 ########################################
 ## Temperature Data

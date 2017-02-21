@@ -8,7 +8,6 @@ if(length(args)>0)  { ## Then cycle through each element of the list and evaluat
     eval(parse(text=args[[i]]))
   }
 }
-library(data.table)
 library(tidyverse)
 library(stringr)
 library(lubridate)
@@ -50,9 +49,16 @@ if(single_rnot){
     purrr::map(~get_alpha_parms_r0_dist(tx_data, curr_date=.x, county_r0_dists = county_r0_distributions))
 }
 
-est_alphas <- purrr::map(daily_parms, get_alpha_likes, disp_dt=dispersion_dt)
+est_alphas <- purrr::map(daily_parms, get_alpha_likes_cpp, disp_df=dispersion_df)
 
-est_alphas[2:length(est_alphas)] <- est_alphas[2:length(est_alphas)] %>% map(function(x) x[,2])
+change_col_names <- function(x){
+  ## Cpp version changes the colnames to have an X in the name and periods
+  colnames(x)[2] <- gsub(pattern = "[.]", replacement = "-", x = gsub(pattern = "X", replacement = "", x = colnames(x)[2]))
+  x
+}
+est_alphas <- purrr::map(est_alphas, change_col_names) %>% purrr::map(as_data_frame)
+
+est_alphas[2:length(est_alphas)] <- est_alphas[2:length(est_alphas)] %>% purrr::map(function(x) x[,2])
 
 est_alphas_df <- est_alphas %>% bind_cols()
 
