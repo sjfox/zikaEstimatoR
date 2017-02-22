@@ -74,9 +74,9 @@ double scaling_loglike_cpp(double alpha, List params, DataFrame disp_df){
 // ## Returns the Negative log likelihood for set of parameters
   List parms = Rcpp::clone(params);
   NumericVector rnots = as<NumericVector>(parms["rnot"]);
-
+  double reporting_rate = as<double>(parms["reporting_rate"]);
   if(any(!Rcpp::is_na(rnots))){
-    rnots = rnots * alpha;
+    rnots = rnots * alpha * reporting_rate;
     NumericVector ods = find_rnot_ods(rnots, disp_df);
     parms = subs_parms(Rcpp::List::create(Rcpp::Named("rnot") = rnots, Rcpp::Named("overdispersion")=ods), parms);
     return(-Rcpp::sum(intro_loglike(parms)));
@@ -121,6 +121,7 @@ DataFrame get_alpha_likes_cpp(List parms, DataFrame disp_df){
   NumericVector alphas = range(0.0, 1.0, n);
   NumericVector nllikes(n);
   for(int i =0; i <n; i++){
+    // std::cout << alphas[i] << std::endl;
     nllikes[i] = scaling_loglike_cpp(alphas[i], parms, disp_df);
   }
 

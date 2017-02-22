@@ -7,12 +7,11 @@ sourceCpp("cpp/cpp_fitting_fxns.cpp")
 
 zika_parms <- function(rnot = 1.1,
                        num_intros = 1,
-                       prior_mu = 1,
-                       prior_sd = 1000,
                        distribution = "pois",
                        overdispersion=1,
                        date = NA,
-                       rnot_dist=NA){
+                       rnot_dist=NA,
+                       reporting_rate = 1){
   return(as.list(environment()))
 }
 

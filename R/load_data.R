@@ -47,7 +47,7 @@ tx_temps <- tx_temps %>% mutate(month = factor(month, levels = month.abb)) %>%
 ########################################
 ## Perkins Sim data for R0 calculation
 ########################################
-load("data/functions_R0_AR_random_draws.RData")
+load("data/functions_R0_AR_random_draws_boostrap_scam.RData")
 
 
 ########################################
@@ -55,7 +55,7 @@ load("data/functions_R0_AR_random_draws.RData")
 ########################################
 tx_county <- read_csv(file = "data/county_r0_parameters.csv")
 
-load("data_produced/calculated_tx_county_rnots.rda")
+load("data_produced/calculated_tx_county_rnots_bootstrap.rda")
 
 #######################################
 ## GGPLot2 function

@@ -80,7 +80,7 @@ find_overdispersion <- function(rnot){
 }
 
 
-rnots <- seq(0, 150, length.out= 100000)
+rnots <- seq(0, 200, length.out= 200000)
 ods <- unlist(purrr::map(rnots, ~find_overdispersion(.x)))
 
 

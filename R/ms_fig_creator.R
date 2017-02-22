@@ -120,21 +120,18 @@ save_plot("ms_figs/scaled_upperbound_monthly_r0_estimates.png", plot = rnot_plot
 rnot_by_month <- map_data(map = "county") %>% filter(region=="texas") %>%
   mutate(subregion = if_else(subregion=="de witt", "dewitt", subregion)) %>%
   left_join(tx_county_rnots, by=c("subregion" = "county")) %>%
-  mutate(med_r0 = if_else(med_r0<0.01, 0.01, med_r0)) %>%
+  # mutate(med_r0 = if_else(med_r0<0.01, 0.01, med_r0)) %>%
   ggplot(aes(x=long, y=lat, fill = med_r0, group = subregion)) + facet_wrap(~month)+
     geom_polygon(color = "gray", size=0.1) +
-  scale_fill_gradientn(name = expression("R"[0]), na.value = "white", trans="log10",
+  scale_fill_gradientn(name = expression("R"[0]), na.value = "white",
                        colours = c("white", "blue", "yellow", "red"),
-                       breaks= c(0.1, 1, 10),
-                       values = scales::rescale(log10(c(min(tx_county_rnots %>% filter(med_r0 >= 0.01) %>% select(med_r0)),
-                                                        1,
-                                                        1.000001,
-                                                        max(tx_county_rnots %>% select(med_r0))))),
+                       # breaks= c(0.1, 1, 10),
+                       values = scales::rescale(c(0, 1, 1.000001, max(tx_county_rnots %>% select(med_r0)))),
                        guide = guide_colorbar(title=expression("R"[0]), barheight=10)) +
     theme_nothing()
 rnot_by_month
 
-save_plot("figs/monthly_rnot_state.pdf", plot = rnot_by_month, base_height = 5, base_aspect_ratio = 1.3)
+save_plot("ms_figs/s1_monthly_rnot_state.png", plot = rnot_by_month, base_height = 5, base_aspect_ratio = 1.3)
 
 
 ###########################
