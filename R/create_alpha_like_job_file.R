@@ -5,12 +5,14 @@ if(grepl('sjf826', Sys.info()['login'])) setwd(file.path("/home1", "02958", "sjf
 if(grepl('tacc', Sys.info()['nodename'])) setwd(file.path("/home1", "02958", "sjf826", base_url))
 
 
-rnot_values <- c("low","med", "high")
-single_rnot <- TRUE
+# rnot_values <- c("low","med", "high")
+single_rnot <- FALSE
+reporting_rate <- seq(0.1, 1, by=0.1)
 sink('launcher/alpha_like_runs.txt')
-for(ind in seq_along(rnot_values)){
+for(ind in seq_along(reporting_rate)){
   startCmd <- "R CMD BATCH --no-restore --no-save '--args"
-  fileCmd <- paste0(' single_rnot=', single_rnot, ' rnot_value="', rnot_values[ind], '"')
+  #fileCmd <- paste0(' single_rnot=', single_rnot, ' rnot_value="', rnot_values[ind], '"')
+  fileCmd <- paste0(' single_rnot=', single_rnot, ' reporting_rate="', reporting_rate[ind], '"')
   endCmd <- "' ../R/calc_alpha_likelihoods.R"
   full_cmd <- paste0(startCmd, fileCmd, endCmd)
   # print(full_cmd)
