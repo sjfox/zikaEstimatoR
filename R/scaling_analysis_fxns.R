@@ -28,8 +28,6 @@ get_alpha_parms_r0_dist <- function(tx_data, curr_date, county_r0_dists, reporti
 get_alpha_ubs <- function(est_alpha_likes, sig_level){
   ## Function that returns upperbound estimates for alpha for all dates based on
   ## their estimated likelihoods
-  browser()
-
   get_alpha_ub <- function(alpha, like, sig_level){
     alpha[rev(which(like > sig_level))[1]]
   }

@@ -8,7 +8,7 @@ library(cowplot)
 library(tidyverse)
 library(maps)
 # library(stringr)
-sapply(c("R/load_data.R", "R/fitting_fxns.R"), source)
+sapply(c("R/fitting_fxns.R", "R/plotting_fxns.R"), source)
 
 
 ###############################
@@ -64,59 +64,51 @@ save_plot("ms_figs/likelihood_ex.png", import_example_plot, base_height = 4, bas
 
 
 
-###############################
+##################################################################
 ## Final R0 estimates for the states plot by month -- Median
-###############################
-load("data_produced/calculated_tx_county_rnots.rda")
-load("data_produced/statewide_alphas_through_time.rda")
+##################################################################
+load("data_produced/scaled_rnots_1.0.rda")
 
-month_end_result_df <- map_data(map = "county") %>% filter(region=="texas") %>%
+scaled_rnot_temp <- r0_scaled_df %>% filter(date_predicted == max(date_predicted))
+
+rnot_plot <- map_data(map = "county") %>% filter(region=="texas") %>%
   mutate(subregion = if_else(subregion=="de witt", "dewitt", subregion)) %>%
-  left_join(tx_county_rnots, by=c("subregion" = "county")) %>%
-  mutate(scaled_rnot = tail(est_alphas_df,1)$high*med_r0,
-         scaled_rnot = if_else(scaled_rnot<0.001, 0.001, scaled_rnot))
-
-rnot_plot <- month_end_result_df %>%
-  ggplot(aes(x=long, y=lat, fill = scaled_rnot, group = subregion)) + facet_wrap(~month, nrow = 2)+
+  left_join(scaled_rnot_temp, by=c("subregion" = "county"))  %>%
+  mutate(month_prediction = factor(month_prediction, levels=month.abb)) %>%
+  ggplot(aes(x=long, y=lat, fill = med_r0, group = subregion)) + facet_wrap(~month_prediction)+
     geom_polygon(color = "gray", size=0.1) +
     theme_nothing() +
-    scale_fill_gradient(name = expression("R"[0]), trans="log10", limits = c(0.001,0.1),
+    scale_fill_gradient(name = expression("R"[0]),
                        low="white", high="blue",
-                        breaks= c(0.001, 0.01, 0.1),
                         guide = guide_colorbar(title=expression("R"[0]), barheight=10))
 rnot_plot
 
 
-save_plot("ms_figs/scaled_monthly_r0_estimates.png", plot = rnot_plot, base_height = 4, base_aspect_ratio = 3)
+save_plot("ms_figs/f1_scaled_rnot_predictions_median.png", plot = rnot_plot, base_height = 5, base_aspect_ratio = 1.3)
 
 ###############################
 ## Final R0 estimates for the states by month plot -- high
 ###############################
 
-month_end_result_df <- map_data(map = "county") %>% filter(region=="texas") %>%
+rnot_plot <- map_data(map = "county") %>% filter(region=="texas") %>%
   mutate(subregion = if_else(subregion=="de witt", "dewitt", subregion)) %>%
-  left_join(tx_county_rnots, by=c("subregion" = "county")) %>%
-  mutate(scaled_rnot = tail(est_alphas_df,1)$high*high_r0,
-         scaled_rnot = if_else(scaled_rnot<0.001, 0.001, scaled_rnot))
-
-rnot_plot <- month_end_result_df %>%
-  ggplot(aes(x=long, y=lat, fill = scaled_rnot, group = subregion)) + facet_wrap(~month, nrow = 2)+
+  left_join(scaled_rnot_temp, by=c("subregion" = "county"))  %>%
+  mutate(month_prediction = factor(month_prediction, levels=month.abb)) %>%
+  ggplot(aes(x=long, y=lat, fill = higher_r0, group = subregion)) + facet_wrap(~month_prediction)+
   geom_polygon(color = "gray", size=0.1) +
   theme_nothing() +
-  scale_fill_gradient(name = expression("R"[0]), trans="log10", limits = c(0.001,1),
+  scale_fill_gradient(name = expression("R"[0]),
                       low="white", high="blue",
-                      breaks= c(0.01, 0.1, 1),
                       guide = guide_colorbar(title=expression("R"[0]), barheight=10))
 rnot_plot
 
-
-save_plot("ms_figs/scaled_upperbound_monthly_r0_estimates.png", plot = rnot_plot, base_height = 4, base_aspect_ratio = 3)
-
+save_plot("ms_figs/sf3_scaled_rnot_predictions_high.png", plot = rnot_plot, base_height = 5, base_aspect_ratio = 1.3)
 
 
 ###############################
 ## Monthly R0 for state
 ###############################
+load("data_produced/calculated_tx_county_rnots_bootstrap.rda")
 rnot_by_month <- map_data(map = "county") %>% filter(region=="texas") %>%
   mutate(subregion = if_else(subregion=="de witt", "dewitt", subregion)) %>%
   left_join(tx_county_rnots, by=c("subregion" = "county")) %>%
@@ -131,7 +123,7 @@ rnot_by_month <- map_data(map = "county") %>% filter(region=="texas") %>%
     theme_nothing()
 rnot_by_month
 
-save_plot("ms_figs/s1_monthly_rnot_state.png", plot = rnot_by_month, base_height = 5, base_aspect_ratio = 1.3)
+save_plot("ms_figs/sf2_monthly_rnot_state.png", plot = rnot_by_month, base_height = 5, base_aspect_ratio = 1.3)
 
 
 ###########################
@@ -147,7 +139,7 @@ nb_fitod_plot <- nb_fitod_estimates %>% filter(alphas==0.01) %>%
   coord_cartesian(xlim= c(0,20)) +
   labs(x = "Number of Importations", y = expression("Estimated R"[0]))
 
-save_plot("figs/nbinom_rnot_updating.pdf", nb_fitod_plot, base_height = 4, base_aspect_ratio = 1.8)
+save_plot("ms_figs/sf1_nbinom_update.png", nb_fitod_plot, base_height = 4, base_aspect_ratio = 1.8)
 
 
 ############################
