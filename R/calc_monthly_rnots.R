@@ -1,8 +1,32 @@
 ## Generate R0s
+rm(list=ls())
+
 library(tidyverse)
 library(stringr)
 
-sapply(c("R/fitting_fxns.R", "R/load_data.R", "R/r0_calc_fxns.R"), source)
+sapply(c("R/fitting_fxns.R", "R/r0_calc_fxns.R"), source)
+
+########################################
+## Texas county information for R0 calculation
+########################################
+tx_county <- read_csv(file = "data/county_r0_parameters.csv")
+
+########################################
+## Temperature Data
+########################################
+
+tx_temps <- read_csv("data/tx_county_temps.csv")
+tx_temps <- tx_temps %>% mutate(month = factor(month, levels = month.abb)) %>%
+  rename(county = subregion) %>%
+  mutate(county = if_else(county=="de witt", "dewitt", county)) %>%
+  spread(key = month, value = avg_temp)
+
+########################################
+## Perkins Bootstrapped R0 functions
+########################################
+
+load("data/functions_R0_AR_random_draws_boostrap_scam.RData")
+
 
 tx_county <- tx_county %>%
   left_join(tx_temps, by=c("county"))
