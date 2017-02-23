@@ -50,7 +50,7 @@ if(single_rnot){
   daily_parms <- unique(tx_data$notification_date) %>%
     purrr::map(~get_alpha_parms(tx_data, curr_date=.x, reporting_rate=reporting_rate))
 } else{
-  load("data_produced/county_r0_distributions_boostrap.rda")
+  load("data_produced/county_r0_distributions_bootstrap.rda")
   tx_data <- tx_imports  %>% mutate(month = factor(month, levels = month.abb))
 
   daily_parms <- unique(tx_data$notification_date) %>%
