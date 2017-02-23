@@ -119,7 +119,7 @@ for(i in 1:1000){
 }
 
 
-save(reps,rep.master,scam.est.list,mort.fun,eip.fun,a,b,c.r,h.list,file='data/functions_R0_AR_random_draws_boostrap_scam.RData')
+save(reps,rep.master,scam.est.list,mort.fun,eip.fun,a,b,c.r,h.list,file='data/functions_R0_AR_random_draws_bootstrap_scam.RData')
 
 
 econ = seq(6.5,10.5,0.1)

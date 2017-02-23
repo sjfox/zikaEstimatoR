@@ -50,7 +50,7 @@ save(alpha_ubs, file="data_produced/alpha_likelihoods/alpha_uperbounds.rda")
 ## Create a data frame that holds the scaled R0 data through time
 ####################################################################
 load(df_locs[1])
-load("data_produced/county_r0_distributions_boostrap.rda")
+load("data_produced/county_r0_distributions_bootstrap.rda")
 
 set.seed(12033)
 sample_alphas <- function(alphas, likes){
@@ -100,10 +100,7 @@ get_scaled_dfs <- function(loc, county_r0_dist){
   r0_scaled_df
 }
 
-
-
 r0_scaled_df <- get_scaled_dfs(df_locs[1], county_r0_distributions)
-
 
 save(r0_scaled_df, file = "data_produced/scaled_rnots.rda")
 

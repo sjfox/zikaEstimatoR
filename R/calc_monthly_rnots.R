@@ -25,7 +25,7 @@ tx_temps <- tx_temps %>% mutate(month = factor(month, levels = month.abb)) %>%
 ## Perkins Bootstrapped R0 functions
 ########################################
 
-load("data/functions_R0_AR_random_draws_boostrap_scam.RData")
+load("data/functions_R0_AR_random_draws_bootstrap_scam.RData")
 
 
 tx_county <- tx_county %>%
