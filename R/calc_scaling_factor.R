@@ -35,14 +35,14 @@ load_return_df <- function(loc){
 }
 
 reporting_rates <- seq(0.1,1,by=.1)
-reporting_rates <- 1
-reporting_rates <- sprintf("%.1f", reporting_rates)
+# reporting_rates <- 1
+# reporting_rates <- sprintf("%.1f", reporting_rates)
 df_locs <- paste0("data_produced/alpha_likelihoods/alpha_like_rnot_dist_", reporting_rates, ".rda")
 
 alpha_ubs <- df_locs %>% purrr::map(~load_return_df(.x)) %>%
   purrr::map(~get_ub_alphas(.x, )) %>%
   bind_rows() %>%
-  mutate(reporting_rate = rep(reporting_rates, each = (ncol(est_alphas_df)-1) ))
+  mutate(reporting_rate = rep(reporting_rates, each = (ncol(load_return_df(df_locs[1]))-1) ))
 
 save(alpha_ubs, file="data_produced/alpha_likelihoods/alpha_uperbounds.rda")
 

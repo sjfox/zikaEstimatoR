@@ -82,7 +82,7 @@ double scaling_loglike_cpp(double alpha, List params, DataFrame disp_df){
     return(-Rcpp::sum(intro_loglike(parms)));
   } else{
     NumericMatrix rnot_dist = internal::convert_using_rfunction(as<DataFrame>(parms["rnot_dist"]), "as.matrix");
-    rnot_dist = rnot_dist * alpha;
+    rnot_dist = rnot_dist * alpha * reporting_rate;
     NumericVector rnots = internal::convert_using_rfunction(rnot_dist, "as.numeric");
     NumericVector log_likes(rnot_dist.ncol());
     NumericVector ods = find_rnot_ods(rnots, disp_df);
