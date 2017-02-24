@@ -45,10 +45,10 @@ county_r0_distributions <- rnot_calc_dist(tx_county$mosquito.abundance,
 county_r0_distributions <- county_r0_distributions %>% mutate(county = tx_county[["county"]], month=tx_county[["month"]]) %>%
   select(county, month, everything())
 
-save(county_r0_distributions, file = "data_produced/county_r0_distributions_boostrap.rda")
+save(county_r0_distributions, file = "data_produced/county_r0_distributions_bootstrap.rda")
 
 
-load("data_produced/county_r0_distributions_boostrap.rda")
+load("data_produced/county_r0_distributions_bootstrap.rda")
 tx_county <- tx_county %>%
                 mutate(low_r0 = apply(county_r0_distributions[,-(1:2)], 1, quantile, probs=c(0.025)),
                        med_r0 = apply(county_r0_distributions[,-(1:2)], 1, quantile, probs=c(0.5)),
