@@ -67,9 +67,10 @@ save_plot("ms_figs/likelihood_ex.png", import_example_plot, base_height = 4, bas
 ##################################################################
 ## Final R0 estimates for the states plot by month -- Median
 ##################################################################
-load("data_produced/scaled_rnots_1.0.rda")
+load("data_produced/scaled_rnots.rda")
 
-scaled_rnot_temp <- r0_scaled_df %>% filter(date_predicted == max(date_predicted))
+scaled_rnot_temp <- r0_scaled_df %>% ungroup() %>%
+                      filter(date_predicted == max(date_predicted), reporting_rate == 0.2)
 
 rnot_plot <- map_data(map = "county") %>% filter(region=="texas") %>%
   mutate(subregion = if_else(subregion=="de witt", "dewitt", subregion)) %>%
@@ -106,7 +107,7 @@ save_plot("ms_figs/sf3_scaled_rnot_predictions_high.png", plot = rnot_plot, base
 
 
 ###############################
-## Monthly R0 for state
+## Monthly R0 for state - supplemental Figure
 ###############################
 load("data_produced/calculated_tx_county_rnots_bootstrap.rda")
 rnot_by_month <- map_data(map = "county") %>% filter(region=="texas") %>%
@@ -127,7 +128,7 @@ save_plot("ms_figs/sf2_monthly_rnot_state.png", plot = rnot_by_month, base_heigh
 
 
 ###########################
-# Negative binomial updating R0 figure
+# Negative binomial updating R0 figure - supplemental Figure
 ###########################
 load("data_produced/nb_fitod_estimates.rda")
 
@@ -143,20 +144,29 @@ save_plot("ms_figs/sf1_nbinom_update.png", nb_fitod_plot, base_height = 4, base_
 
 
 ############################
-# Statewide scaling alpha results
+# Statewide scaling alpha results - Figure
 ############################
-load("data_produced/statewide_alphas_through_time.rda")
+load("data_produced/alpha_likelihoods/alpha_uperbounds.rda")
+
+tx_imports <- read_csv("data/ZikaReportDates11032016.csv")
+tx_imports <- tx_imports %>% mutate(notification_date = mdy(`First Notification Date`)) %>%
+  mutate(month = as.character(month(notification_date, label=TRUE, abbr = T)),
+         county = tolower(str_replace_all(County, " County", ""))) %>%
+  select(county, notification_date, month)
+
+
 
 cum_import <- tx_imports %>% group_by(notification_date) %>%
   summarise(num_imports = n()) %>%
   mutate(cum_imports = cumsum(num_imports)/nrow(tx_imports))
 
-alpha_plot <- est_alphas_df %>%
-  left_join(cum_import, by=c("info" = "notification_date"))  %>%
-  ggplot(aes(info, high)) +
-    geom_point(size=1.5) +
-    geom_line(aes(info, cum_imports))+
-    labs(y = "Scaling Factor Upperbound", x = "Date") +
+alpha_plot <- alpha_ubs %>% filter(reporting_rate %in% c("0.1", "0.2", "1")) %>%
+  left_join(cum_import, by=c("date" = "notification_date"))  %>%
+  ggplot(aes(date, sig_0.01)) +
+    geom_point(aes(color = as.factor(reporting_rate)), size=1.5) +
+    geom_line(aes(date, cum_imports))+
+    labs(y = "Scaling Factor Upperbound", x = "Date", color = "Reporting\nRate") +
+    scale_color_brewer(palette = 2, type = "qual")+
     scale_y_continuous(sec.axis = sec_axis(~. * nrow(tx_imports), name = "Importations"))
 alpha_plot
 
