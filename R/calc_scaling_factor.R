@@ -49,7 +49,6 @@ save(alpha_ubs, file="data_produced/alpha_likelihoods/alpha_uperbounds.rda")
 ####################################################################
 ## Create a data frame that holds the scaled R0 data through time
 ####################################################################
-load(df_locs[1])
 load("data_produced/county_r0_distributions_bootstrap.rda")
 
 set.seed(12033)
@@ -92,15 +91,16 @@ get_scaled_dfs <- function(loc, county_r0_dist){
     select(date, alpha_samp)
 
   r0_sum_df <- vector("list", nrow(county_r0_distributions))
-  for(i in 1:1000){
-    r0_sum_df[[i]] <- scale_rnot_distribution(county_r0_distributions[1,], alpha_dat)
+  for(i in 1:nrow(county_r0_distributions)){
+    r0_sum_df[[i]] <- scale_rnot_distribution(county_r0_distributions[i,], alpha_dat)
   }
   r0_scaled_df <- r0_sum_df %>% bind_rows() %>%
     mutate(reporting_rate = get_reporting_rate(loc))
   r0_scaled_df
 }
 
-r0_scaled_df <- get_scaled_dfs(df_locs[1], county_r0_distributions)
+r0_scaled_df <- df_locs %>% purrr::map(~get_scaled_dfs(.x, county_r0_distributions)) %>%
+                            bind_rows()
 
 save(r0_scaled_df, file = "data_produced/scaled_rnots.rda")
 

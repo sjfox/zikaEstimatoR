@@ -13,7 +13,8 @@ get_secondary_above_20 <- function(rnot){
   slope <- (p2[2] - p1[2]) / (p2[1] - p1[1])
   yint <- - slope * p1[1] + p1[2]
   if(rnot < yint){
-    # warning("R0 is low and returning zero") # Happens very often, so not worth warning
+    ## If the rnot is below the y intercept,
+    ## find the overdispersion parameter for the yintercept instead
     return(0)
   }
 
@@ -32,24 +33,16 @@ find_overdispersion <- function(rnot){
     pnbinom(q = 20, mu = rnot, size = x, lower.tail = FALSE) - prob_above
   }
   # print(rnot)
-  if(prob_above == 0){
-    ## If Rnot is very low
-    if(rnot==0) {
-      return(1e-16)
-    }
-    # browser()
-    seq_lower <- seq(1e-16, 0.5,length.out=1000)
-    low <- -1
-    prob_above <- 1e-5
-    ps <- compare_ps(seq_lower, prob_above, rnot)
-    while(max(ps, na.rm=T) < 0){
-      prob_above <- prob_above/10
-      ps <- compare_ps(seq_lower, prob_above, rnot)
-    }
-    low <- seq_lower[which.max(ps)]
-    # print(rnot)
-    # browser()
-    overdisp <- uniroot(f = compare_ps, interval = c(low, 1),  rnot=rnot, prob_above= prob_above)
+  if(prob_above <= 2e-4){
+    ## If Rnot is below 0.586 create relationships for rnot convert to ods:
+    ## x = rnot, y = returned od
+    ## Dispersion parameter ranges from 1e-16 (rnot=0) to 1e-5 (rnot=.586)
+    ## Those values used to make smoothish function
+    p1 <- c(0, 1e-16)
+    p2 <- c(0.592, 6e-5)
+    slope <- (p2[2] - p1[2]) / (p2[1] - p1[1])
+    yint <- - slope * p1[1] + p1[2]
+    overdisp = list(root = slope * rnot + yint)
   } else {
     if(prob_above >= (1-1e-4) ){
       ## If rnot is very large
@@ -58,7 +51,6 @@ find_overdispersion <- function(rnot){
     } else{
       seq_lower <- seq(0,100,length.out=10000)
       ps <- compare_ps(seq_lower, prob_above, rnot)
-
       if(all(diff(ps) > 0)){
         ## If Rnot is large but not very large
         overdisp <- uniroot(f = compare_ps, interval = c(0, 100), rnot=rnot, prob_above=prob_above)
@@ -68,7 +60,7 @@ find_overdispersion <- function(rnot){
         max_p <- which.max(ps)
         # browser()
         overdisp <- try(uniroot(f = compare_ps, interval = c(0, seq_lower[max_p]), rnot=rnot, prob_above=prob_above), silent = TRUE)
-        if(class(overdisp) == "try-error"){
+        if(class(overdisp) == "try-error" | overdisp$root==0){
           overdisp <- uniroot(f = compare_ps, interval = c(seq_lower[max_p], 100), rnot=rnot, prob_above=prob_above)
         }
       }
