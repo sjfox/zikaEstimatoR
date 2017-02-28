@@ -33,66 +33,52 @@ find_overdispersion <- function(rnot){
     pnbinom(q = 20, mu = rnot, size = x, lower.tail = FALSE) - prob_above
   }
   # print(rnot)
-  if(prob_above <= 2e-4){
+  if(rnot == 0) {
+    return(1e-16)
+  }
+  if(prob_above == 0){
     ## If Rnot is below 0.586 create relationships for rnot convert to ods:
     ## x = rnot, y = returned od
     ## Dispersion parameter ranges from 1e-16 (rnot=0) to 1e-5 (rnot=.586)
     ## Those values used to make smoothish function
-    p1 <- c(0, 1e-16)
-    p2 <- c(0.592, 6e-5)
-    slope <- (p2[2] - p1[2]) / (p2[1] - p1[1])
-    yint <- - slope * p1[1] + p1[2]
-    overdisp = list(root = slope * rnot + yint)
-  } else {
-    if(prob_above >= (1-1e-4) ){
-      ## If rnot is very large
-      seq_lower <- seq(0,100,length.out=1000)
-      overdisp = list(root = seq_lower[which(abs(compare_ps(seq_lower, prob_above, rnot)) <= 1e-06)[1]])
-    } else{
-      seq_lower <- seq(0,100,length.out=10000)
-      ps <- compare_ps(seq_lower, prob_above, rnot)
-      if(all(diff(ps) > 0)){
-        ## If Rnot is large but not very large
-        overdisp <- uniroot(f = compare_ps, interval = c(0, 100), rnot=rnot, prob_above=prob_above)
-      } else{
-        ## If Rnot isn't miniscule, but is small (~0.5-1.5)
-        ## Begin the search from the first positive difference.
-        max_p <- which.max(ps)
-        # browser()
-        overdisp <- try(uniroot(f = compare_ps, interval = c(0, seq_lower[max_p]), rnot=rnot, prob_above=prob_above), silent = TRUE)
-        if(class(overdisp) == "try-error" | overdisp$root==0){
-          overdisp <- uniroot(f = compare_ps, interval = c(seq_lower[max_p], 100), rnot=rnot, prob_above=prob_above)
-        }
+    # p1 <- c(0, 1e-16)
+    # p2 <- c(0.592, 6e-5)
+    # slope <- (p2[2] - p1[2]) / (p2[1] - p1[1])
+    # yint <- - slope * p1[1] + p1[2]
+    # overdisp = list(root = slope * rnot + yint)
+    prob_above <- 1e-8
+  }
+  # } else {
+    # if(prob_above >= (1-1e-4) ){
+    #   ## If rnot is very large
+    #   seq_lower <- seq(0,100,length.out=1000)
+    #   overdisp = list(root = seq_lower[which(abs(compare_ps(seq_lower, prob_above, rnot)) <= 1e-06)[1]])
+    # } else{
+    max_int = 1
+    seq_lower <- seq(0,max_int,length.out=1000)
+    ps <- compare_ps(seq_lower, prob_above, rnot)
+
+    max_p <- which.max(ps)
+    overdisp <- try(uniroot(f = compare_ps, interval = c(seq_lower[max_p], max_int), rnot=rnot, prob_above=prob_above), silent = TRUE)
+    if(class(overdisp) == "try-error"){
+      overdisp <- try(uniroot(f = compare_ps, interval = c(0, seq_lower[max_p]), rnot=rnot, prob_above=prob_above), silent = TRUE)
+      if(class(overdisp) == "try-error"){
+        browser()
+      } else if(overdisp$root == 0){
+        browser()
       }
     }
+    # }
 
-  }
-
+  # }
   overdisp$root
 }
 
-
-rnots <- seq(0, 200, length.out= 200000)
+#################
+## Setup rnots for analysis
+#################
+rnots <- seq(0, 20, length.out= 10000)
 ods <- unlist(purrr::map(rnots, ~find_overdispersion(.x)))
-
-
-##################################
-## Ensure that results make sense
-##################################
-rand_sample <- sample(x = c(1:100000), size = 10000, replace = F)
-offset <- vector(mode="numeric", length = 10000)
-for(rand_ind in rand_sample){
-  prob_above <- get_secondary_above_20(rnots[rand_ind])
-  offset[which(rand_ind==rand_sample)] <- pnbinom(q = 20, mu = rnots[rand_ind], size = ods[rand_ind], lower.tail = FALSE) - prob_above
-}
-
-summary(offset)
-hist(offset, breaks=100)
-
-
-################################
-## Save to data frame and save for use
-################################
 
 dispersion_df <- data_frame(rnots = rnots, ods = ods)
 # dispersion_dt <- data.table(dispersion_df, val=rnots)
