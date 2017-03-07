@@ -7,7 +7,7 @@ if(grepl('tacc', Sys.info()['nodename'])) setwd(file.path("/home1", "02958", "sj
 
 # rnot_values <- c("low","med", "high")
 single_rnot <- FALSE
-reporting_rate <- seq(0.01, 0.015, 0.02, 0.04, 0.05, 0.1, 0.2, 1)
+reporting_rate <- c(0.01, 0.015, 0.02, 0.04, 0.05, 0.1, 0.2, 1)
 sink('launcher/alpha_like_runs.txt')
 for(ind in seq_along(reporting_rate)){
   startCmd <- "R CMD BATCH --no-restore --no-save '--args"

@@ -14,10 +14,10 @@
 #------------------Scheduler Options--------------------
 #SBATCH -J run_alpha_like          # Job name
 #SBATCH -N 1                    # Total number of nodes (16 cores/node)
-#SBATCH -n 3                  # Total number of tasks
+#SBATCH -n 8                  # Total number of tasks
 #SBATCH -p normal          # Queue name
 #SBATCH -o out_branches.o%j      # Name of stdout output file (%j expands to jobid)
-#SBATCH -t 24:00:00            # Run time (hh:mm:ss)
+#SBATCH -t 1:00:00            # Run time (hh:mm:ss)
 #SBATCH --mail-user=spncrfx@gmail.com
 #SBATCH --mail-type=all  # email me all messages
 #      <------------ Account String ------------>
