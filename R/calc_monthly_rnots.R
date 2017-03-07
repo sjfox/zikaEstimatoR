@@ -22,10 +22,10 @@ tx_temps <- tx_temps %>% mutate(month = factor(month, levels = month.abb)) %>%
   spread(key = month, value = avg_temp)
 
 ########################################
-## Perkins Bootstrapped R0 functions
+## Perkins R0 functions with h=1
 ########################################
 
-load("data/functions_R0_AR_random_draws_bootstrap_scam.RData")
+load("data_produced/vector_suitability/parms_fxns_r0.RData")
 
 
 tx_county <- tx_county %>%
@@ -45,10 +45,10 @@ county_r0_distributions <- rnot_calc_dist(tx_county$mosquito.abundance,
 county_r0_distributions <- county_r0_distributions %>% mutate(county = tx_county[["county"]], month=tx_county[["month"]]) %>%
   select(county, month, everything())
 
-save(county_r0_distributions, file = "data_produced/county_r0_distributions_bootstrap.rda")
+save(county_r0_distributions, file = "data_produced/county_r0_distributions.rda")
 
 
-load("data_produced/county_r0_distributions_bootstrap.rda")
+load("data_produced/county_r0_distributions.rda")
 tx_county <- tx_county %>%
                 mutate(low_r0 = apply(county_r0_distributions[,-(1:2)], 1, quantile, probs=c(0.025)),
                        med_r0 = apply(county_r0_distributions[,-(1:2)], 1, quantile, probs=c(0.5)),
@@ -57,6 +57,6 @@ tx_county <- tx_county %>%
 
 tx_county_rnots <- tx_county %>% mutate(month = factor(month, levels = month.abb))
 
-save(tx_county_rnots, file = "data_produced/calculated_tx_county_rnots_bootstrap.rda")
+save(tx_county_rnots, file = "data_produced/calculated_tx_county_rnots.rda")
 
 

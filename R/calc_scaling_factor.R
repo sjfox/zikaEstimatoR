@@ -44,12 +44,14 @@ alpha_ubs <- df_locs %>% purrr::map(~load_return_df(.x)) %>%
   bind_rows() %>%
   mutate(reporting_rate = rep(reporting_rates, each = (ncol(load_return_df(df_locs[1]))-1) ))
 
+alpha_ubs %>% ggplot(aes(date, sig_0.01, color = as.factor(reporting_rate))) + geom_line()
+
 save(alpha_ubs, file="data_produced/alpha_likelihoods/alpha_uperbounds.rda")
 
 ####################################################################
 ## Create a data frame that holds the scaled R0 data through time
 ####################################################################
-load("data_produced/county_r0_distributions_bootstrap.rda")
+load("data_produced/county_r0_distributions.rda")
 
 set.seed(12033)
 sample_alphas <- function(alphas, likes){
