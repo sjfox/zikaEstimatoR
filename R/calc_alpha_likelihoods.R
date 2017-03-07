@@ -32,8 +32,9 @@ if(grepl('tacc', Sys.info()['nodename'])) setwd(file.path("/home1", "02958", "sj
 sapply(c("R/fitting_fxns.R", "R/scaling_analysis_fxns.R"), source)
 
 
-tx_imports <- read_csv("data/ZikaReportDates11032016.csv")
+tx_imports <- read_csv("data/Zika Disease Cases by Notification Date as of 030617.csv")
 tx_imports <- tx_imports %>% mutate(notification_date = mdy(`First Notification Date`)) %>%
+  arrange(notification_date)%>%
   mutate(month = as.character(month(notification_date, label=TRUE, abbr = T)),
          county = tolower(str_replace_all(County, " County", ""))) %>%
   select(county, notification_date, month)
@@ -50,7 +51,7 @@ if(single_rnot){
   daily_parms <- unique(tx_data$notification_date) %>%
     purrr::map(~get_alpha_parms(tx_data, curr_date=.x, reporting_rate=reporting_rate))
 } else{
-  load("data_produced/county_r0_distributions_bootstrap.rda")
+  load("data_produced/county_r0_distributions.rda")
   tx_data <- tx_imports  %>% mutate(month = factor(month, levels = month.abb))
 
   daily_parms <- unique(tx_data$notification_date) %>%

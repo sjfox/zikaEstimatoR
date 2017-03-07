@@ -8,7 +8,7 @@ library(cowplot)
 library(tidyverse)
 library(maps)
 # library(stringr)
-sapply(c("R/fitting_fxns.R", "R/plotting_fxns.R"), source)
+sapply(c("R/fitting_fxns.R"), source)
 
 
 ###############################
@@ -109,7 +109,7 @@ save_plot("ms_figs/sf3_scaled_rnot_predictions_high.png", plot = rnot_plot, base
 ###############################
 ## Monthly R0 for state - supplemental Figure
 ###############################
-load("data_produced/calculated_tx_county_rnots_bootstrap.rda")
+load("data_produced/calculated_tx_county_rnots.rda")
 rnot_by_month <- map_data(map = "county") %>% filter(region=="texas") %>%
   mutate(subregion = if_else(subregion=="de witt", "dewitt", subregion)) %>%
   left_join(tx_county_rnots, by=c("subregion" = "county")) %>%
@@ -154,8 +154,6 @@ tx_imports <- tx_imports %>% mutate(notification_date = mdy(`First Notification 
          county = tolower(str_replace_all(County, " County", ""))) %>%
   select(county, notification_date, month)
 
-
-
 cum_import <- tx_imports %>% group_by(notification_date) %>%
   summarise(num_imports = n()) %>%
   mutate(cum_imports = cumsum(num_imports)/nrow(tx_imports))
@@ -177,39 +175,22 @@ save_plot("figs/daily_alpha.pdf", alpha_plot, base_height = 4, base_aspect_ratio
 # Statewide scaling R0 results plot
 ############################
 
-load("data_produced/statewide_alphas_rnots.rda")
+load("data_produced/scaled_rnots.rda")
 
+scaled_rnot_temp <- r0_scaled_df %>% ungroup() %>%
+  filter(date_predicted %in% c("2016-01-04", "2016-07-01"), reporting_rate == 0.2, month_prediction == "Nov")
 
-## Median ms fig plot 0
-scaled_jun_nov_rnot_df <- map_data(map = "county") %>% filter(region=="texas") %>%
+rnot_plot <- map_data(map = "county") %>% filter(region=="texas") %>%
   mutate(subregion = if_else(subregion=="de witt", "dewitt", subregion)) %>%
-  left_join(statewide_alpha_rnots, by=c("subregion" = "county")) %>%
-  group_by(month) %>%
-  filter(info==min(info), month %in% c("Jun","Nov")) %>%
-  ungroup() %>% gather(r0_type, r0_est, med_r0, high_r0) %>%
-  mutate(scaled_june = r0_est * max(high),
-         scaled_nov = r0_est * min(high)) %>%
-  gather(key, value, r0_est, scaled_june, scaled_nov) %>%
-  mutate(value = if_else(value < 0.001, 0, value),
-         month = if_else(month=="Jun", "June", "November"),
-         key =factor(key, levels = c("r0_est", "scaled_june", "scaled_nov"), labels = c("Initial", "June", "November")))
-
-## Median R0 estimate plots
-scaled_jun_nov_rnot_plot <- scaled_jun_nov_rnot_df %>%
-  filter(r0_type == "med_r0") %>%
-  ggplot(aes(x=long, y=lat, fill = value, group = subregion)) + facet_grid(month~key)+
-    geom_polygon(color = "gray", size=0.1) +
-
-    scale_fill_gradientn(name = expression("R"[0]), na.value = "white", trans="log10",
-                       colours = c("white", "blue", "yellow", "red"),
-                       breaks= c(0.1, 1, 10),
-                       values = scales::rescale(log10(c(min(scaled_jun_nov_rnot_df %>% filter(r0_type=="med_r0", value!=0) %>% select(value)),
-                                                        1,
-                                                        1.000001,
-                                                        max(scaled_jun_nov_rnot_df %>% filter(r0_type=="med_r0") %>% select(value))))),
-                       guide = guide_colorbar(title=expression("R"[0]), barheight=10)) +
-    theme_nothing()
-scaled_jun_nov_rnot_plot
+  left_join(scaled_rnot_temp, by=c("subregion" = "county"))  %>%
+  mutate(month_prediction = factor(month_prediction, levels=month.abb)) %>%
+  ggplot(aes(x=long, y=lat, fill = med_r0, group = subregion)) + facet_wrap(~date_predicted)+
+  geom_polygon(color = "gray", size=0.1) +
+  theme_nothing() +
+  scale_fill_gradient(name = expression("R"[0]),
+                      low="white", high="blue",
+                      guide = guide_colorbar(title=expression("R"[0]), barheight=10))
+rnot_plot
 
 ## Combine with alpha plot above
 fig3_statewide_alphas_rnots <- plot_grid(alpha_plot, scaled_jun_nov_rnot_plot, rel_widths = c(1,2), labels = "AUTO")
