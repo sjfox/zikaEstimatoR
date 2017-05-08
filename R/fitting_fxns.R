@@ -11,7 +11,8 @@ zika_parms <- function(rnot = 1.1,
                        overdispersion=1,
                        date = NA,
                        rnot_dist=NA,
-                       reporting_rate = 1){
+                       reporting_rate = 1,
+                       secondary_trans = 0){
   return(as.list(environment()))
 }
 

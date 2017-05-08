@@ -59,4 +59,25 @@ tx_county_rnots <- tx_county %>% mutate(month = factor(month, levels = month.abb
 
 save(tx_county_rnots, file = "data_produced/calculated_tx_county_rnots.rda")
 
+#######################################
+## Run for hypothetical known 2016 cameron temperature
+#######################################
+cam_2016_temp <- 22.944 # https://www.weather.gov/climate/index.php?wfo=bro
+cam_nov_data <- tx_county %>% filter(county=="cameron", month=="Nov")
+cam_nov_data$avg_temperature <- cam_2016_temp
+
+cam_2016_rnot <- rnot_calc_dist(cam_nov_data$mosquito.abundance,
+               cam_nov_data$gdp,
+               cam_nov_data$avg_temperature,
+               a=a, b=b, c.r=c.r,
+               mort.fun.list=mort.fun,
+               eip.fun.list=eip.fun,
+               scam.est.list=scam.est.list)
+
+cam_2016_rnot <- as.data.frame(t(cam_2016_rnot))
+rownames(cam_2016_rnot) <- NULL
+cam_2016_rnot <- cam_2016_rnot %>% mutate(county = "cameron2016", month="Nov") %>% select(county,month, V1:V1000)
+
+save(cam_2016_rnot, file = "data_produced/calculated_cam_county_2016_rnots.rda")
+
 

@@ -9,19 +9,31 @@ get_alpha_parms <- function(tx_data, curr_date, reporting_rate){
     group_by(county, month) %>%
     summarize(imports = n(), rnot = unique(rnot))
 
-  subs_parms(list(rnot = tx_data$rnot, num_intros = tx_data$imports, distribution="nbinom", date=curr_date, reporting_rate=reporting_rate), zika_parms())
+  subs_parms(list(rnot = tx_data$rnot,
+                  num_intros = tx_data$imports,
+                  distribution="nbinom",
+                  date=curr_date,
+                  reporting_rate=reporting_rate,
+                  secondary_trans = tx_data$sec_trans), zika_parms())
 }
 
 
 get_alpha_parms_r0_dist <- function(tx_data, curr_date, county_r0_dists, reporting_rate){
   tx_data <- tx_data %>% filter( notification_date <= curr_date) %>%
-    group_by(county, month) %>%
+    group_by(county, month, sec_trans) %>%
     summarize(imports = n())
 
   rnot_data <- left_join(tx_data, county_r0_dists, by = c("county", "month")) %>%
     ungroup() %>%
     select(starts_with("V"))
-  subs_parms(list(rnot = NA, rnot_dist = rnot_data, num_intros = tx_data$imports, distribution="nbinom", date=curr_date, reporting_rate=reporting_rate), zika_parms())
+
+  subs_parms(list(rnot = NA,
+                  rnot_dist = rnot_data,
+                  num_intros = tx_data$imports,
+                  distribution="nbinom",
+                  date=curr_date,
+                  reporting_rate=reporting_rate,
+                  secondary_trans = tx_data$sec_trans), zika_parms())
 }
 
 

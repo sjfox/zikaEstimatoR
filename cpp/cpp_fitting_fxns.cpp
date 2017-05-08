@@ -53,15 +53,16 @@ NumericVector intro_loglike(List parms) {
   NumericVector rnots = Rcpp::as<NumericVector>(parms["rnot"]);
   NumericVector ods = Rcpp::as<NumericVector>(parms["overdispersion"]);
   NumericVector num_intros = Rcpp::as<NumericVector>(parms["num_intros"]);
+  NumericVector sec_trans = Rcpp::as<NumericVector>(parms["secondary_trans"]);
   NumericVector log_likes(rnots.size());
   if(dist =="pois"){
     for(int i =0; i < log_likes.size();i++){
-      log_likes[i] = R::dpois(0, rnots[i], true) * num_intros[i];
+      log_likes[i] = R::dpois(sec_trans[i], rnots[i], true) * num_intros[i];
     }
   } else if(dist =="nbinom"){
     for(int i =0; i < log_likes.size(); i++){
       // std::cout << rnots[i] << std::endl;
-      log_likes[i] = R::dnbinom_mu(0, ods[i], rnots[i], true) * num_intros[i];
+      log_likes[i] = R::dnbinom_mu(sec_trans[i], ods[i], rnots[i], true) * num_intros[i];
     }
   } else{
     Rcpp::stop("Inadmissible distribution value");
@@ -97,7 +98,7 @@ double scaling_loglike_cpp(double alpha, List params, DataFrame disp_df){
                                             Rcpp::Named("overdispersion")=ods[indices]), parms);
       log_likes[i] = -Rcpp::sum(intro_loglike(parms));
     }
-    return(Rcpp::median(log_likes));
+    return(Rcpp::mean(log_likes));
   }
 }
 

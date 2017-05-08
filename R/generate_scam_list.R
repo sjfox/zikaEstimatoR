@@ -197,7 +197,7 @@ for(rr in 1 : reps){
   }
 }
 
-
+library(scam)
 econ = seq(6.5,10.5,0.1)
 plot(
   econ,predict(scam.est.list[[1]],newdata=data.frame(econ=econ)),

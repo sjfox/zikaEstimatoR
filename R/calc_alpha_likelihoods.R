@@ -39,6 +39,13 @@ tx_imports <- tx_imports %>% mutate(notification_date = mdy(`First Notification 
          county = tolower(str_replace_all(County, " County", ""))) %>%
   select(county, notification_date, month)
 
+tx_imports$sec_trans <- 0
+include_trans <- as.numeric(include_trans)
+if(!is.na(include_trans)){
+  tx_imports$sec_trans[which(tx_imports$notification_date== "2016-11-21" & tx_imports$county == "cameron")] <- include_trans
+  tx_imports$sec_trans[which(tx_imports$notification_date== "2016-12-12" & tx_imports$county == "cameron")[1]] <- 1
+}
+
 if(single_rnot){
   rnot_col_name <- switch(rnot_value, low = "low_r0", high = "high_r0", med = "med_r0", stop("Incorrect rnot value supplied, should be 'low', 'med', or 'high'."))
   tx_data <- tx_imports %>% mutate(month = factor(month, levels = month.abb)) %>%
@@ -49,16 +56,14 @@ if(single_rnot){
   colnames(tx_data)[which(colnames(tx_data) == rnot_col_name)] <- "rnot"
 
   daily_parms <- unique(tx_data$notification_date) %>%
-    purrr::map(~get_alpha_parms(tx_data, curr_date=.x, reporting_rate=reporting_rate))
+    purrr::map(~get_alpha_parms(tx_data, curr_date=.x, reporting_rate=as.numeric(reporting_rate)))
 } else{
   load("data_produced/county_r0_distributions.rda")
   tx_data <- tx_imports  %>% mutate(month = factor(month, levels = month.abb))
-
   daily_parms <- unique(tx_data$notification_date) %>%
-    purrr::map(~get_alpha_parms_r0_dist(tx_data, curr_date=.x, county_r0_dists = county_r0_distributions, reporting_rate=reporting_rate))
+    purrr::map(~get_alpha_parms_r0_dist(tx_data, curr_date=.x, county_r0_dists = county_r0_distributions, reporting_rate=as.numeric(reporting_rate)))
 }
 load("data_produced/dispersion_df.rda")
-
 est_alphas <- purrr::map(daily_parms, get_alpha_likes_cpp, disp_df=dispersion_df)
 
 change_col_names <- function(x){
@@ -75,6 +80,7 @@ est_alphas_df <- est_alphas %>% bind_cols()
 if(single_rnot){
   save(est_alphas_df, file = file.path("..","workfolder","data","ZikaEstimatoR_data", paste0("alpha_like_single_", rnot_col_name, ".rda")))
 } else{
-  save(est_alphas_df, file = file.path("..","workfolder","data","ZikaEstimatoR_data", paste0("alpha_like_rnot_dist_", reporting_rate,".rda")))
+  # save(est_alphas_df, file = file.path("..", paste0("alpha_like_rnot_dist_", ifelse(is.na(include_trans), 0, include_trans), "_", reporting_rate,".rda")))
+  save(est_alphas_df, file = file.path("..","workfolder","data","ZikaEstimatoR_data", paste0("alpha_like_rnot_dist_", ifelse(is.na(include_trans), 0, include_trans), "_", reporting_rate,".rda")))
 }
 
