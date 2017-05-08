@@ -25,9 +25,8 @@ library(lubridate)
 base_url <- "zikaEstimatoR"
 if(grepl('spencerfox', Sys.info()['login'])) setwd(file.path("~", "projects", base_url))
 if(grepl('vagrant', Sys.info()['user'])) setwd( file.path("/vagrant", base_url) )
-if(grepl('sjf826', Sys.info()['login'])) setwd(file.path("/home1", "02958", "sjf826", base_url))
-if(grepl('tacc', Sys.info()['nodename'])) setwd(file.path("/home1", "02958", "sjf826", base_url))
-
+if(grepl('stampede', Sys.info()['nodename'])) setwd(file.path('/home1/02958/sjf826', base_url))
+if(grepl('wrangler', Sys.info()['nodename'])) setwd(file.path('/home/02958/sjf826', base_url))
 
 sapply(c("R/fitting_fxns.R", "R/scaling_analysis_fxns.R"), source)
 
