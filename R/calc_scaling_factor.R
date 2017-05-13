@@ -15,45 +15,19 @@ sapply(c("R/fitting_fxns.R", "R/scaling_analysis_fxns.R"), source)
 ####################################################################
 ## Create a data frame that holds alpha upperbounds through time
 ####################################################################
-get_ub_alphas <- function(df, reporting_rate){
-  find_upper_alpha <- function(alpha, likelihood, sig_level){
-    ## df should have column with alpha and likelihood
-    ## Doesn't work if everything is below the significance level.
-
-    alphas <- sample(x = alpha, size = 100000, replace = T, prob = likelihood)
-    quantile(x= alphas, probs = (1-sig_level) )
-    # if(max(likelihood) < sig_level){
-    #
-    # } else{
-    #   alpha[likelihood >= sig_level] %>% tail(1)
-    # }
-  }
-  # browser()
-  df %>% gather(date, likelihood, 2:ncol(df)) %>%
-    mutate(date = ymd(date)) %>%
-    group_by(date) %>%
-    summarize(sig_0.05 = find_upper_alpha(alpha, likelihood, 0.05),
-              sig_0.01 = find_upper_alpha(alpha, likelihood, 0.01))
-}
-
-load_return_df <- function(loc){
-  load(loc)
-  est_alphas_df
-}
 
 # reporting_rates <- seq(0.1,1,by=.1)
-reporting_rates <- c(0.02, 0.03, 0.05)
+# reporting_rates <- c(0.02, 0.03, 0.05)
 # reporting_rates <- sprintf("%.1f", reporting_rates)
-df_locs <- paste0("data_produced/alpha_likelihoods/alpha_like_rnot_dist_", reporting_rates, ".rda")
-# list.files("data_produced/alpha_likelihoods/", pattern="*.rda", full.names = T)
-df_locs <- "data_produced/alpha_likelihoods/alpha_like_rnot_dist_0.0574sec_trans1.rda"
-reporting_rates <- 0.0574
-alpha_ubs <- df_locs %>% purrr::map(~load_return_df(.x)) %>%
-  purrr::map(~get_ub_alphas(.x, 0.0574)) %>%
-  bind_rows() %>%
-  mutate(reporting_rate = rep(reporting_rates, each = (ncol(load_return_df(df_locs[1]))-1) ))
+# df_locs <- paste0("data_produced/alpha_likelihoods/alpha_like_rnot_dist_", reporting_rates, ".rda")
+df_locs <- list.files("data_produced/alpha_likelihoods/", pattern="*.rda", full.names = T)
+# df_locs <- "data_produced/alpha_likelihoods/alpha_like_rnot_dist_0.0574sec_trans1.rda"
+# reporting_rates <- 0.0574
 
-alpha_ubs %>% ggplot(aes(date, sig_0.05, color = as.factor(reporting_rate))) + geom_line() + ylim(0,1)
+alpha_ubs <- df_locs %>% purrr::map(~get_ub_alphas(.x)) %>%
+  bind_rows()
+
+alpha_ubs %>% ggplot(aes(date, sig_0.05, color = as.factor(reporting_rate))) + geom_line() + ylim(0,1) + facet_wrap(~as.factor(secondary_trans))
 
 save(alpha_ubs, file="data_produced/alpha_likelihoods/alpha_upperbounds.rda")
 
@@ -63,55 +37,6 @@ save(alpha_ubs, file="data_produced/alpha_likelihoods/alpha_upperbounds.rda")
 load("data_produced/county_r0_distributions.rda")
 
 set.seed(12033)
-sample_alphas <- function(alphas, likes){
-  sample(x = alphas, size = 1000, replace = T, prob = likes)
-}
-
-scale_rnot_summary <- function(rnot_dat, alpha_dat){
-  ## Takes in a single row containing R0 distributions for a county in a specific month
-  ## Returns a summarized dataframe for the R0s scaled for each date that data were estimated
-  rnot_dat <- rnot_dat %>% gather(samp, rnot, 3:ncol(rnot_dat))
-  n <- nrow(alpha_dat)/1000
-  # browser()
-
-  q_cols <- function(scaled_rnots){
-    qs <- quantile(scaled_rnots, probs = c(0.005, 0.025, 0.5, 0.975, 0.995))
-    data_frame(lower_r0 = qs[1],
-               low_r0 = qs[2],
-               med_r0 = qs[3],
-               high_r0 = qs[4],
-               higher_r0 = qs[5])
-    # prob_aboves <- 1 - ecdf(scaled_rnots)(c(0.5, 1))
-    # data_frame(lower_r0 = prob_aboves[1],
-    #            med_r0 = prob_aboves[2])
-  }
-
-  scaled <- bind_cols(c(alpha_dat, rnot_dat[rep(x = 1:1000, n),])) %>%
-    mutate(scaled_rnot = alpha_samp*rnot) %>%
-    group_by(county,month,date) %>%
-    do(q_cols(.$scaled_rnot)) %>%
-    rename(month_prediction = month, date_predicted = date)
-}
-
-get_reporting_rate <- function(loc){
-  sub(strsplit(loc, split = "_")[[1]][length(strsplit(loc[1], split = "_")[[1]])], pattern = ".rda", replacement="")
-}
-
-get_scaled_df_summary <- function(loc, county_r0_dist){
-  est_alphas_df <- load_return_df(loc)
-  alpha_dat <- est_alphas_df %>% gather(date, like, 2:ncol(est_alphas_df)) %>%
-    group_by(date) %>%
-    mutate(alpha_samp = sample_alphas(alpha, like)) %>%
-    select(date, alpha_samp)
-
-  r0_sum_df <- vector("list", nrow(county_r0_dist))
-  for(i in 1:nrow(county_r0_distributions)){
-    r0_sum_df[[i]] <- scale_rnot_summary(county_r0_dist[i,], alpha_dat)
-  }
-  r0_scaled_df <- r0_sum_df %>% bind_rows() %>%
-    mutate(reporting_rate = get_reporting_rate(loc))
-  r0_scaled_df
-}
 
 r0_scaled_df <- df_locs %>% purrr::map(~get_scaled_df_summary(.x, county_r0_distributions)) %>%
                             bind_rows()
@@ -128,7 +53,6 @@ get_scaled_rnot_dist <-  function(rnot_dat, alpha_dat){
   rnot_dat <- rnot_dat %>% gather(samp, rnot, 3:ncol(rnot_dat))
   n <- nrow(alpha_dat)/1000
   # browser()
-
 
   scaled <- bind_cols(c(alpha_dat, rnot_dat[rep(x = 1:1000, n),])) %>%
     mutate(scaled_rnot = alpha_samp*rnot) %>%

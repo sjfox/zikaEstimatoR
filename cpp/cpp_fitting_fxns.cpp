@@ -72,7 +72,7 @@ NumericVector intro_loglike(List parms) {
 
 // [[Rcpp::export]]
 double scaling_loglike_cpp(double alpha, List params, DataFrame disp_df){
-// ## Returns the Negative log likelihood for set of parameters
+// ## Returns the log likelihood for set of parameters
   List parms = Rcpp::clone(params);
   NumericVector rnots = as<NumericVector>(parms["rnot"]);
   double reporting_rate = as<double>(parms["reporting_rate"]);
@@ -80,7 +80,7 @@ double scaling_loglike_cpp(double alpha, List params, DataFrame disp_df){
     rnots = rnots * alpha * reporting_rate;
     NumericVector ods = find_rnot_ods(rnots, disp_df);
     parms = subs_parms(Rcpp::List::create(Rcpp::Named("rnot") = rnots, Rcpp::Named("overdispersion")=ods), parms);
-    return(-Rcpp::sum(intro_loglike(parms)));
+    return(Rcpp::sum(intro_loglike(parms)));
   } else{
     NumericMatrix rnot_dist = internal::convert_using_rfunction(as<DataFrame>(parms["rnot_dist"]), "as.matrix");
     rnot_dist = rnot_dist * alpha * reporting_rate;
