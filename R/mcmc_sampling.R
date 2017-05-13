@@ -27,14 +27,14 @@ get_alpha_parms_r0_dist_mcmc <- function(tx_data, curr_date, county_r0_dists, re
     fit_gamma <- get_gamma_parms(rnot_data[ind,])
     gamma_parms[ind,] <- c(fit_gamma$estimate["shape"], fit_gamma$estimate["rate"])
   }
-
   subs_parms(list(rnot = NA,
                   rnot_dist = gamma_parms,
                   num_intros = tx_data$imports,
                   distribution="nbinom",
                   date=curr_date,
                   reporting_rate=reporting_rate,
-                  secondary_trans = tx_data$sec_trans), zika_parms())
+                  secondary_trans = tx_data$sec_trans,
+                  county_month = paste0(tx_data$county, "_", tx_data$month)), zika_parms())
 }
 
 
@@ -94,6 +94,11 @@ mcmc_zika_rnot <- function (zika_parms,
   ## Assumption that alpha is between 0 and 1, could change in future iterations
   curr_alpha <- runif(1)
 
+  ## Make sure duplicated county/month Rnots are the same
+  ## Make the last instances equal the first ones
+  if(anyDuplicated(zika_parms$county_month)){
+    curr_rnots[duplicated(zika_parms$county_month)] <- curr_rnots[duplicated(zika_parms$county_month, fromLast = TRUE)]
+  }
   ###### Calc log like + log prior
   curr_parms <- subs_parms(list(rnot = curr_rnots), zika_parms)
   curr_llprior <- llprior(curr_alpha, curr_parms, disp_df)
@@ -104,6 +109,12 @@ mcmc_zika_rnot <- function (zika_parms,
   for( ii in 2:N){
     ###### Draw Proposed Rnots and alpha
     proposed_rnots <- draw_new_rnots(curr_rnots, rnot_tuning)
+    ## link the duplicated months here as well
+    if(anyDuplicated(zika_parms$county_month)){
+      proposed_rnots[duplicated(zika_parms$county_month)] <- proposed_rnots[duplicated(zika_parms$county_month, fromLast = TRUE)]
+    }
+
+
     ## Assumption that alpha is between 0 and 1, could change in future iterations
     proposed_alpha <- draw_new_alpha(curr_alpha, alpha_tuning)
 
