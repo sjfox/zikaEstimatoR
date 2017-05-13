@@ -16,7 +16,7 @@ for(ind in seq_along(reporting_rate)){
     startCmd <- "R CMD BATCH --no-restore --no-save '--args"
     #fileCmd <- paste0(' single_rnot=', single_rnot, ' rnot_value="', rnot_values[ind], '"')
     fileCmd <- paste0(' single_rnot=', single_rnot, ' reporting_rate="', reporting_rate[ind], '"', ' include_trans="', include_trans[trans_ind], '"')
-    endCmd <- "' ../R/calc_alpha_.posterior.R"
+    endCmd <- "' ../R/calc_alpha_posterior.R"
     full_cmd <- paste0(startCmd, fileCmd, endCmd)
     # print(full_cmd)
     cat(full_cmd)               # add command
