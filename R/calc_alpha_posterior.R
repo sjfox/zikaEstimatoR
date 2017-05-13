@@ -29,7 +29,7 @@ if(grepl('vagrant', Sys.info()['user'])) setwd( file.path("/vagrant", base_url) 
 if(grepl('stampede', Sys.info()['nodename'])) setwd(file.path('/home1/02958/sjf826', base_url))
 if(grepl('wrangler', Sys.info()['nodename'])) setwd(file.path('/home/02958/sjf826', base_url))
 
-sapply(c("R/fitting_fxns.R", "R/scaling_analysis_fxns.R", "R/mcmc_test.R"), source)
+sapply(c("R/fitting_fxns.R", "R/scaling_analysis_fxns.R", "R/mcmc_sampling.R"), source)
 
 
 tx_imports <- read_csv("data/Zika Disease Cases by Notification Date as of 030617.csv")
