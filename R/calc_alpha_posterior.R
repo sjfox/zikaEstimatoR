@@ -65,7 +65,6 @@ if(single_rnot){
 }
 load("data_produced/dispersion_df.rda")
 
-
 est_alphas <- purrr::map(daily_parms, mcmc_zika_rnot,
                          alpha_tuning = .1,
                          rnot_tuning = .1,
@@ -73,8 +72,6 @@ est_alphas <- purrr::map(daily_parms, mcmc_zika_rnot,
                          burnin = 100000,
                          N = 200000,
                          thin=10)
-
-test <- est_alphas
 
 est_alphas <- est_alphas %>% transpose()
 est_alphas_df <- est_alphas[[1]] %>% purrr::map(as_data_frame) %>% purrr::map(function(x) select(x, 2)) %>% bind_cols()

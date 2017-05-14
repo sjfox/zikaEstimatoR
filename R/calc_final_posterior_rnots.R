@@ -20,6 +20,7 @@ sapply(c("R/fitting_fxns.R", "R/scaling_analysis_fxns.R", "R/mcmc_sampling.R"), 
 
 ######################################################
 ## Define parameters for run
+set.seed(1023902)
 
 include_trans <- 1
 reporting_rate <- 0.0574
@@ -68,8 +69,6 @@ est_posterior <- purrr::map(daily_parms, mcmc_zika_rnot,
 est_posterior <- est_posterior[[1]]$samples %>% as_data_frame() %>% select(-1)
 
 colnames(est_posterior) <- c("alpha", daily_parms[[1]]$county_month)
-test <- est_posterior
-est_posterior <- test
 
 # cameron months where importations happened are duplicated. in this case, remove the last instance of them
 # Necessary to remove last instance, because first instance isn't subject to constraints of the importation
@@ -92,6 +91,48 @@ for(cty_mnth in all_counties){
   }
 }
 
+est_posterior <- est_posterior %>% gather(county, rnot_samp, 2:ncol(est_posterior)) %>%
+  separate(col = county, c("county", "month"), sep="_")
+
+save(est_posterior, file = paste0("data_produced/posterior_estimates/county_posterior_rnots_",
+                                  ifelse(is.na(include_trans), 0, include_trans), "_", reporting_rate,".rda"))
 
 
+#####################################################
+## Generate posterior if using 2016 cameron temperatures
+load("data_produced/calculated_cam_county_2016_rnots.rda")
+
+## Substitute in 2016 temperature estimates for November
+cam_2016_rnot$county <- "cameron"
+cam_county_r0_dist <- county_r0_distributions
+cam_county_r0_dist[which(cam_county_r0_dist$county == "cameron" & cam_county_r0_dist$month == "Nov"), ] <- cam_2016_rnot
+
+daily_parms <- unique(tx_data$notification_date)[length(unique(tx_data$notification_date))] %>%
+  purrr::map(~get_alpha_parms_r0_dist_mcmc(tx_data, curr_date=.x, county_r0_dists = cam_county_r0_dist, reporting_rate=as.numeric(reporting_rate)))
+
+## Get posterior distribution -- only returns posterior for county/months that had importations
+cam_est_posterior <- purrr::map(daily_parms, mcmc_zika_rnot,
+                            alpha_tuning = .1,
+                            rnot_tuning = .1,
+                            disp_df = dispersion_df,
+                            burnin = 100000,
+                            N = 200000,
+                            thin=10)
+
+cam_est_posterior <- cam_est_posterior[[1]]$samples %>% as_data_frame() %>% select(-1)
+
+colnames(cam_est_posterior) <- c("alpha", daily_parms[[1]]$county_month)
+
+# cameron months where importations happened are duplicated. in this case, remove the last instance of them
+# Necessary to remove last instance, because first instance isn't subject to constraints of the importation
+cam_est_posterior <- cam_est_posterior[,-which(duplicated(colnames(cam_est_posterior), fromLast = TRUE))]
+
+cam_est_posterior <- cam_est_posterior %>% gather(county, rnot_samp, 2:ncol(cam_est_posterior)) %>%
+  separate(col = county, c("county", "month"), sep="_") %>%
+  filter(county == "cameron", month == "Nov") %>%
+  select(county,month, rnot_samp) %>%
+  mutate(county = "cameron2016")
+
+save(cam_est_posterior, file = paste0("data_produced/posterior_estimates/cam2016_posterior_rnots_",
+                                      ifelse(is.na(include_trans), 0, include_trans), "_", reporting_rate,".rda"))
 
