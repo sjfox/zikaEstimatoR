@@ -12,15 +12,47 @@ sapply(c("R/fitting_fxns.R", "R/scaling_analysis_fxns.R"), source)
 
 
 
+
+#################################################
+## For posterior distributions
+
+df_locs <- list.files("data_produced/posterior_estimates", pattern="alpha_mcmc_*", full.names = T)
+
+
+get_ci_posterior_alpha <- function(path){
+  load(path)
+  parms <- get_parms(path)
+
+  est_alphas_df %>% gather(date, alpha_samp, 1:ncol(est_alphas_df)) %>%
+    group_by(date) %>%
+    summarize(lowest = quantile(alpha_samp, 0.005),
+              low = quantile(alpha_samp, 0.025),
+              med = quantile(alpha_samp, 0.5),
+              high = quantile(alpha_samp, 0.975),
+              highest = quantile(alpha_samp, 0.995)) %>%
+    mutate(reporting_rate = parms$reporting_rate,
+           secondary_trans = parms$sec_trans)
+}
+
+
+post_alpha_ci <- df_locs %>% purrr::map(~get_ci_posterior_alpha(.x)) %>%
+  bind_rows()
+
+
+save(post_alpha_ci, file = "data_produced/post_alpha_ci.rda")
+
+
+
 ####################################################################
 ## Create a data frame that holds alpha upperbounds through time
+## WORKS ON LIKELIHOODS - NOT USED ANYMORE
 ####################################################################
 
 # reporting_rates <- seq(0.1,1,by=.1)
 # reporting_rates <- c(0.02, 0.03, 0.05)
 # reporting_rates <- sprintf("%.1f", reporting_rates)
 # df_locs <- paste0("data_produced/alpha_likelihoods/alpha_like_rnot_dist_", reporting_rates, ".rda")
-df_locs <- list.files("data_produced/alpha_likelihoods/", pattern="*.rda", full.names = T)
+df_locs <- list.files("data_produced/alpha_likelihoods", pattern="*.rda", full.names = T)
 # df_locs <- "data_produced/alpha_likelihoods/alpha_like_rnot_dist_0.0574sec_trans1.rda"
 # reporting_rates <- 0.0574
 
@@ -39,7 +71,7 @@ load("data_produced/county_r0_distributions.rda")
 set.seed(12033)
 
 r0_scaled_df <- df_locs %>% purrr::map(~get_scaled_df_summary(.x, county_r0_distributions)) %>%
-                            bind_rows()
+  bind_rows()
 
 save(r0_scaled_df, file = "data_produced/scaled_rnots_quants_sectrans.rda")
 
@@ -93,6 +125,11 @@ temp %>% group_by(month(date_predicted)) %>% filter(date_predicted==min(date_pre
   geom_histogram(aes(y = ..density..), alpha=0.6, position="identity")
 
 #
+
+
+
+
+
 # ####################################
 # ## Calculating statewide alpha from county importation data
 # ####################################

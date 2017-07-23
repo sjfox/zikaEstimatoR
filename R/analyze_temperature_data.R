@@ -2,8 +2,9 @@
 ## Processes Temperature data from Perkins paper
 ## http://www.worldclim.org/current
 ## Download 2.5 minute average temperature
+## Data from 1960-1990
 ## Place unzipped folder in data/directory (should be named "tmean_2-5m_bil")
-## Run script to produce tx_county_temps.txt in data/ folder
+## Run script to produce tx_county_temps.csv in data/ folder
 ## Delete temperature files
 #################################################
 rm(list=ls())

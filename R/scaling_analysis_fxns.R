@@ -57,7 +57,7 @@ get_parms <- function(path){
 get_ub_alphas <- function(loc){
   find_upper_alpha <- function(alpha, likelihood, sig_level){
     alphas <- sample(x = alpha, size = 500000, replace = T, prob = likelihood)
-    quantile(x= alphas, probs = (1-sig_level) )
+    quantile(x= alphas, probs = (1-sig_level/2) )
     # if(max(likelihood) < sig_level){
     #
     # } else{

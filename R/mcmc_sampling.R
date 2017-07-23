@@ -60,7 +60,7 @@ llprior <- function(alpha, parms, disp_df){
 
 draw_new_alpha <- function(alpha, tuning){
   runif(1)
-  # exp(log(alpha) + rnorm(1, sd = tuning))
+  # plogis(qlogis(alpha) + rnorm(1, sd = tuning))
 }
 
 draw_new_rnots <- function(rnots, tuning){

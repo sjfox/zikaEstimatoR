@@ -9,7 +9,7 @@
 ## Code from Perkins
 ##############################################################################
 ## This part not run, because takes a long time. data saved already in data_produced
-reps = 10000
+reps = 100
 
 set.seed(808)
 
@@ -33,6 +33,7 @@ for(rr in 1:reps){
       break
     }
   }
+  browser()
   which.range = which(eip.vec > (eip.draw - 0.05) & eip.vec < (eip.draw + 0.05))
   beta.samples[rr,] = colMeans(scalars[which.range,])
   eip.fun[[rr]] =  approxfun(seq(0,50,.1), sapply(seq(0,50,.1), function(T){exp(beta.samples[rr,1] + beta.samples[rr,2] * T)}))

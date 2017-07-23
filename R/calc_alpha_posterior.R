@@ -65,6 +65,7 @@ if(single_rnot){
 }
 load("data_produced/dispersion_df.rda")
 
+# save(daily_parms, file = "data_produced/mcmc_daily_parms_1_0.0574.rda")
 est_alphas <- purrr::map(daily_parms, mcmc_zika_rnot,
                          alpha_tuning = .1,
                          rnot_tuning = .1,

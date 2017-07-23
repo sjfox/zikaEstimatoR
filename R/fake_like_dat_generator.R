@@ -1,5 +1,5 @@
 ###############################################
-## Generating Fake data for ms plots
+## Generating Fake data for ms Figure 1 -- NOT USED ANYMORE, BECAUSE THIS IS LIKELIHOOD
 ###############################################
 library(tidyverse)
 sapply(c("R/fitting_fxns.R"), source)
@@ -38,8 +38,6 @@ get_fake_parms <- function(dist, intros, reporting_rate){
 introductions <- c(10, 25, 50)
 rates <- c(0.0574)
 aug_parms <- cam_rnot_dists %>% filter(month =="Aug") %>% select(rnot) %>% get_fake_parms(intros = introductions, reporting_rate = rates)
-# oct_parms <- cam_rnot_dists %>% filter(month =="Oct") %>% select(rnot) %>% get_fake_parms(intros = introductions, reporting_rate = rates)
-# mar_parms <- cam_rnot_dists %>% filter(month =="Mar") %>% select(rnot) %>% get_fake_parms(intros = introductions, reporting_rate = rates)
 parms <- c(aug_parms)
 
 fake_alpha_likes <- parms %>% purrr::map(~get_alpha_likes_cpp(.x, dispersion_df))
