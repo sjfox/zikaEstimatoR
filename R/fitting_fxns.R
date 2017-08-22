@@ -13,124 +13,199 @@ zika_parms <- function(rnot = 1.1,
                        rnot_dist=NA,
                        reporting_rate = 1,
                        secondary_trans = 0,
-                       county_month = NA){
+                       county_month_year = NA){
   return(as.list(environment()))
 }
 
-scaling_loglike <- function(alpha, parms, disp_df){
-  ## Returns the Negative log likelihood for set of parameters
-
-  if(!is.na(parms$rnot)){
-    rnots <- parms$rnot * alpha
-    # ods <- unlist(purrr::map(rnots, ~find_overdispersion(.x)))
-    ods <- find_rnot_ods(rnots, disp_df)
-    parms <- subs_parms(list(rnot=rnots, overdispersion=ods), parms)
-    -sum(intro_loglike(parms))
+get_gamma_parms <- function(rnots){
+  require(MASS)
+  fit <- try(fitdistr(as.numeric(unlist(rnots)), "gamma"), silent = T)
+  if(class(fit) == "try-error"){
+    # browser()
+    list(estimate=c(shape=mean(as.numeric(unlist(rnots))), rate=1))
   } else{
-    rnot_dist <- parms$rnot_dist * alpha
-    log_likes <- vector("numeric", ncol(rnot_dist))
-    ods <- matrix(find_rnot_ods(unlist(rnot_dist), disp_df), nrow(rnot_dist))
-    for(col in 1:ncol(rnot_dist)){
-      parms$rnot <- rnot_dist[,col]
-      parms$overdispersion <- ods[,col]
-      log_likes[col] <- -sum(intro_loglike(parms))
-    }
-    parms$rnot <- NA
-    return(median(log_likes))
+    fit
   }
 }
 
 
+get_alpha_parms_r0_dist_mcmc <- function(tx_data, curr_date, county_r0_dists, reporting_rate){
+  tx_data <- tx_data %>% filter( notification_date <= curr_date) %>%
+    group_by(county, month, sec_trans, year) %>%
+    summarize(imports = n())
 
-get_alpha_likes <- function(parms, disp_df){
-  # Returns likelihood values for a variety of alphas, so that distributions can be calculated post-hoc
-  alphas <- seq(0, 1, length.out=1000)
-  nllikes <- unlist(purrr::map(alphas, ~scaling_loglike(., parms=parms, disp_df)))
-  likes <- exp(-nllikes)
+  rnot_data <- left_join(tx_data, county_r0_dists, by = c("county", "month", "year")) %>%
+    ungroup() %>%
+    select(starts_with("V"))
 
-  df <- data_frame(alpha = alphas, likelihood = likes)
-  colnames(df)[2] <- as.character(parms$date)
-  df
+
+  num_rnots <- nrow(rnot_data)
+  gamma_parms <- data_frame(shape = rep(0, num_rnots), rate = rep(0,num_rnots))
+  for(ind in 1:nrow(rnot_data)){
+    fit_gamma <- get_gamma_parms(rnot_data[ind,])
+    gamma_parms[ind,] <- c(fit_gamma$estimate["shape"], fit_gamma$estimate["rate"])
+  }
+  subs_parms(list(rnot = NA,
+                  rnot_dist = gamma_parms,
+                  num_intros = tx_data$imports,
+                  distribution="nbinom",
+                  date=curr_date,
+                  reporting_rate=reporting_rate,
+                  secondary_trans = tx_data$sec_trans,
+                  county_month_year = paste0(tx_data$county, "_", tx_data$month, "_", tx_data$year)), zika_parms())
 }
 
-############################################################################
-## Fitting the Rnot distribution
-############################################################################
+get_mcmc_parm_list <- function(include_trans, reporting_rate, temperature){
+  ## Function gives the full parm list for running mcmc on every single date of importation
+  ## Can call this function with specified parms, and get a list with elements ready-to-go for mcmc
 
-get_secondary_above_20 <- function(rnot){
-  # Takes in an rnot value and returns the probability of seeing
-  # > 20 secondary cases from that rnot
-  p1 <- c(0.425806451612903, 0.8458765530605259)
-  p2 <- c(4.341935483870967, 3.297197366921235)
+  tx_imports <- read_csv("data/Zika Disease Cases by Notification Date as of 030617.csv")
+  tx_imports <- tx_imports %>% mutate(notification_date = mdy(`First Notification Date`)) %>%
+    arrange(notification_date)%>%
+    mutate(month = as.character(month(notification_date, label=TRUE, abbr = T)),
+           county = tolower(str_replace_all(County, " County", ""))) %>%
+    select(county, notification_date, month)
 
-  slope <- (p2[2] - p1[2]) / (p2[1] - p1[1])
-  yint <- - slope * p1[1] + p1[2]
-  if(rnot < yint){
-    # warning("R0 is low and returning zero") # Happens very often, so not worth warning
-    return(0)
+  tx_imports$sec_trans <- 0
+  include_trans <- as.numeric(include_trans)
+  if(!is.na(include_trans)){
+    tx_imports$sec_trans[which(tx_imports$notification_date== "2016-11-21" & tx_imports$county == "cameron")] <- include_trans
+    tx_imports$sec_trans[which(tx_imports$notification_date== "2016-12-12" & tx_imports$county == "cameron")[1]] <- 1
   }
 
-  prob <- (rnot - yint) / slope / 100
-  if(prob > 1){
-    return(1)
+  if(temperature=="historic"){
+    load("data_produced/county_r0_historic_dists.rda")
+    tx_data <- tx_imports  %>% mutate(month = factor(month, levels = month.abb), year = 1960)
+    county_r0_historic_dists <- county_r0_historic_dists %>% mutate(year = 1960)
+
+    unique(tx_data$notification_date) %>%
+      purrr::map(~get_alpha_parms_r0_dist_mcmc(tx_data, curr_date=.x, county_r0_dists = county_r0_historic_dists, reporting_rate=as.numeric(reporting_rate)))
+  } else if(temperature == "actual"){
+    load("data_produced/county_r0_actual_dists.rda")
+    tx_data <- tx_imports  %>% mutate(month = factor(month, levels = month.abb), year = year(notification_date))
+
+    unique(tx_data$notification_date) %>%
+      purrr::map(~get_alpha_parms_r0_dist_mcmc(tx_data, curr_date=.x, county_r0_dists = county_r0_actual_dists, reporting_rate=as.numeric(reporting_rate)))
+  } else{
+    stop("incorrect specification of temperature")
   }
-  return(prob)
 }
 
-find_overdispersion <- function(rnot){
-  # Find the overdispersion parameter for a given R0
-  prob_above <- get_secondary_above_20(rnot)
 
-  compare_ps <- function(x, prob_above, rnot){
-    pnbinom(q = 20, mu = rnot, size = x, lower.tail = FALSE) - prob_above
-  }
-  # print(rnot)
-  if(prob_above == 0){
-    ## If Rnot is very low
-    if(rnot==0) {
-      return(1e-16)
-    }
-    # browser()
-    seq_lower <- seq(1e-16, 0.5,length.out=1000)
-    low <- -1
-    prob_above <- 1e-5
-    ps <- compare_ps(seq_lower, prob_above, rnot)
-    while(max(ps, na.rm=T) < 0){
-      prob_above <- prob_above/10
-      ps <- compare_ps(seq_lower, prob_above, rnot)
-    }
-    low <- seq_lower[which.max(ps)]
-    # print(rnot)
-    # browser()
-    overdisp <- uniroot(f = compare_ps, interval = c(low, 1),  rnot=rnot, prob_above= prob_above)
-  } else {
-    if(prob_above >= (1-1e-4) ){
-      ## If rnot is very large
-      seq_lower <- seq(0,100,length.out=1000)
-      overdisp = list(root = seq_lower[which(abs(compare_ps(seq_lower, prob_above, rnot)) <= 1e-06)[1]])
-    } else{
-      seq_lower <- seq(0,100,length.out=10000)
-      ps <- compare_ps(seq_lower, prob_above, rnot)
-
-      if(all(diff(ps) > 0)){
-        ## If Rnot is large but not very large
-        overdisp <- uniroot(f = compare_ps, interval = c(0, 100), rnot=rnot, prob_above=prob_above)
-      } else{
-        ## If Rnot isn't miniscule, but is small (~0.5-1.5)
-        ## Begin the search from the first positive difference.
-        max_p <- which.max(ps)
-        # browser()
-        overdisp <- try(uniroot(f = compare_ps, interval = c(0, seq_lower[max_p]), rnot=rnot, prob_above=prob_above), silent = TRUE)
-        if(class(overdisp) == "try-error"){
-          overdisp <- uniroot(f = compare_ps, interval = c(seq_lower[max_p], 100), rnot=rnot, prob_above=prob_above)
-        }
-      }
-    }
-
-  }
-
-  overdisp$root
-}
+# scaling_loglike <- function(alpha, parms, disp_df){
+#   ## Returns the Negative log likelihood for set of parameters
+#
+#   if(!is.na(parms$rnot)){
+#     rnots <- parms$rnot * alpha
+#     # ods <- unlist(purrr::map(rnots, ~find_overdispersion(.x)))
+#     ods <- find_rnot_ods(rnots, disp_df)
+#     parms <- subs_parms(list(rnot=rnots, overdispersion=ods), parms)
+#     -sum(intro_loglike(parms))
+#   } else{
+#     rnot_dist <- parms$rnot_dist * alpha
+#     log_likes <- vector("numeric", ncol(rnot_dist))
+#     ods <- matrix(find_rnot_ods(unlist(rnot_dist), disp_df), nrow(rnot_dist))
+#     for(col in 1:ncol(rnot_dist)){
+#       parms$rnot <- rnot_dist[,col]
+#       parms$overdispersion <- ods[,col]
+#       log_likes[col] <- -sum(intro_loglike(parms))
+#     }
+#     parms$rnot <- NA
+#     return(median(log_likes))
+#   }
+# }
+#
+#
+#
+# get_alpha_likes <- function(parms, disp_df){
+#   # Returns likelihood values for a variety of alphas, so that distributions can be calculated post-hoc
+#   alphas <- seq(0, 1, length.out=1000)
+#   nllikes <- unlist(purrr::map(alphas, ~scaling_loglike(., parms=parms, disp_df)))
+#   likes <- exp(-nllikes)
+#
+#   df <- data_frame(alpha = alphas, likelihood = likes)
+#   colnames(df)[2] <- as.character(parms$date)
+#   df
+# }
+#
+# ############################################################################
+# ## Fitting the Rnot distribution
+# ############################################################################
+#
+# get_secondary_above_20 <- function(rnot){
+#   # Takes in an rnot value and returns the probability of seeing
+#   # > 20 secondary cases from that rnot
+#   p1 <- c(0.425806451612903, 0.8458765530605259)
+#   p2 <- c(4.341935483870967, 3.297197366921235)
+#
+#   slope <- (p2[2] - p1[2]) / (p2[1] - p1[1])
+#   yint <- - slope * p1[1] + p1[2]
+#   if(rnot < yint){
+#     # warning("R0 is low and returning zero") # Happens very often, so not worth warning
+#     return(0)
+#   }
+#
+#   prob <- (rnot - yint) / slope / 100
+#   if(prob > 1){
+#     return(1)
+#   }
+#   return(prob)
+# }
+#
+# find_overdispersion <- function(rnot){
+#   # Find the overdispersion parameter for a given R0
+#   prob_above <- get_secondary_above_20(rnot)
+#
+#   compare_ps <- function(x, prob_above, rnot){
+#     pnbinom(q = 20, mu = rnot, size = x, lower.tail = FALSE) - prob_above
+#   }
+#   # print(rnot)
+#   if(prob_above == 0){
+#     ## If Rnot is very low
+#     if(rnot==0) {
+#       return(1e-16)
+#     }
+#     # browser()
+#     seq_lower <- seq(1e-16, 0.5,length.out=1000)
+#     low <- -1
+#     prob_above <- 1e-5
+#     ps <- compare_ps(seq_lower, prob_above, rnot)
+#     while(max(ps, na.rm=T) < 0){
+#       prob_above <- prob_above/10
+#       ps <- compare_ps(seq_lower, prob_above, rnot)
+#     }
+#     low <- seq_lower[which.max(ps)]
+#     # print(rnot)
+#     # browser()
+#     overdisp <- uniroot(f = compare_ps, interval = c(low, 1),  rnot=rnot, prob_above= prob_above)
+#   } else {
+#     if(prob_above >= (1-1e-4) ){
+#       ## If rnot is very large
+#       seq_lower <- seq(0,100,length.out=1000)
+#       overdisp = list(root = seq_lower[which(abs(compare_ps(seq_lower, prob_above, rnot)) <= 1e-06)[1]])
+#     } else{
+#       seq_lower <- seq(0,100,length.out=10000)
+#       ps <- compare_ps(seq_lower, prob_above, rnot)
+#
+#       if(all(diff(ps) > 0)){
+#         ## If Rnot is large but not very large
+#         overdisp <- uniroot(f = compare_ps, interval = c(0, 100), rnot=rnot, prob_above=prob_above)
+#       } else{
+#         ## If Rnot isn't miniscule, but is small (~0.5-1.5)
+#         ## Begin the search from the first positive difference.
+#         max_p <- which.max(ps)
+#         # browser()
+#         overdisp <- try(uniroot(f = compare_ps, interval = c(0, seq_lower[max_p]), rnot=rnot, prob_above=prob_above), silent = TRUE)
+#         if(class(overdisp) == "try-error"){
+#           overdisp <- uniroot(f = compare_ps, interval = c(seq_lower[max_p], 100), rnot=rnot, prob_above=prob_above)
+#         }
+#       }
+#     }
+#
+#   }
+#
+#   overdisp$root
+# }
 
 #################################################
 ## No longer used

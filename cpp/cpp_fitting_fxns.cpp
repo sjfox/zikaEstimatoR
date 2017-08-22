@@ -27,24 +27,32 @@ List subs_parms(List sub_parms, List ref_parms){
 }
 
 // [[Rcpp::export]]
-NumericVector find_rnot_ods(NumericVector rnot, DataFrame disp_df){
-  // ## Takes in a vector of rnot values and returns
-  // ## The dispersions for nbinom distribution
-  // ## disp_dt must be sorted data table, with one column as rnot and other as ods
-  // ## Can be obtained by running the calc_dispersion_table.R script
-  IntegerVector indices(rnot.size());
-  NumericVector rnots = disp_df["rnots"];
-  for(int i =0; i < rnot.size(); i++){
-    indices[i] = std::distance(rnots.begin(), std::lower_bound(rnots.begin(), rnots.end(), rnot[i]));
-    if(indices[i] != 0){
-      if( std::abs(rnots[indices[i] - 1] - rnots[i]) < std::abs(rnots[indices[i]] - rnots[i])){
-        indices[i] --;
-      }
-    }
-  }
-  NumericVector ods = disp_df["ods"];
-  return(ods[indices]);
+NumericVector find_rnot_ods(NumericVector rnot){
+  // ## Takes in a vector of rnot values and returns vector of same length of dispersions
+  NumericVector ods(rnot.size(), 0.12);
+  return(ods);
 }
+
+// Old dispersion parameter finding algorithm. Not needed because no longer have the table for searching
+// // [[Rcpp::export]]
+// NumericVector find_rnot_ods(NumericVector rnot, DataFrame disp_df){
+//   // ## Takes in a vector of rnot values and returns
+//   // ## The dispersions for nbinom distribution
+//   // ## disp_dt must be sorted data table, with one column as rnot and other as ods
+//   // ## Can be obtained by running the calc_dispersion_table.R script
+//   IntegerVector indices(rnot.size());
+//   NumericVector rnots = disp_df["rnots"];
+//   for(int i =0; i < rnot.size(); i++){
+//     indices[i] = std::distance(rnots.begin(), std::lower_bound(rnots.begin(), rnots.end(), rnot[i]));
+//     if(indices[i] != 0){
+//       if( std::abs(rnots[indices[i] - 1] - rnots[i]) < std::abs(rnots[indices[i]] - rnots[i])){
+//         indices[i] --;
+//       }
+//     }
+//   }
+//   NumericVector ods = disp_df["ods"];
+//   return(ods[indices]);
+// }
 
 // [[Rcpp::export]]
 NumericVector intro_loglike(List parms) {
@@ -71,14 +79,14 @@ NumericVector intro_loglike(List parms) {
 }
 
 // [[Rcpp::export]]
-double scaling_loglike_cpp(double alpha, List params, DataFrame disp_df){
+double scaling_loglike_cpp(double alpha, List params){
 // ## Returns the log likelihood for set of parameters
   List parms = Rcpp::clone(params);
   NumericVector rnots = as<NumericVector>(parms["rnot"]);
   double reporting_rate = as<double>(parms["reporting_rate"]);
   if(any(!Rcpp::is_na(rnots))){
     rnots = rnots * alpha * reporting_rate;
-    NumericVector ods = find_rnot_ods(rnots, disp_df);
+    NumericVector ods = find_rnot_ods(rnots);
     parms = subs_parms(Rcpp::List::create(Rcpp::Named("rnot") = rnots, Rcpp::Named("overdispersion")=ods), parms);
     return(Rcpp::sum(intro_loglike(parms)));
   } else{
@@ -86,7 +94,7 @@ double scaling_loglike_cpp(double alpha, List params, DataFrame disp_df){
     rnot_dist = rnot_dist * alpha * reporting_rate;
     NumericVector rnots = internal::convert_using_rfunction(rnot_dist, "as.numeric");
     NumericVector log_likes(rnot_dist.ncol());
-    NumericVector ods = find_rnot_ods(rnots, disp_df);
+    NumericVector ods = find_rnot_ods(rnots);
     // ods.attr("dim") = Dimension(rnot_dist.nrow(), rnot_dist.ncol());
 
     for(int i =0; i < rnot_dist.ncol(); i++){
@@ -113,7 +121,7 @@ NumericVector range(double min, double max, int N) {
 
 
 // [[Rcpp::export]]
-DataFrame get_alpha_likes_cpp(List parms, DataFrame disp_df){
+DataFrame get_alpha_likes_cpp(List parms){
   // # Returns likelihood values for a variety of alphas, so that distributions can be calculated post-hoc
 
   CharacterVector date = as<CharacterVector>(parms["date"]);
@@ -123,7 +131,7 @@ DataFrame get_alpha_likes_cpp(List parms, DataFrame disp_df){
   NumericVector nllikes(n);
   for(int i =0; i <n; i++){
     // std::cout << alphas[i] << std::endl;
-    nllikes[i] = scaling_loglike_cpp(alphas[i], parms, disp_df);
+    nllikes[i] = scaling_loglike_cpp(alphas[i], parms);
   }
 
   nllikes = Rcpp::exp(-nllikes);

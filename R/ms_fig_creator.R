@@ -111,6 +111,8 @@ est_med_r0 <- est_posterior %>% select(-alpha) %>%
   group_by(county, month) %>%
   summarise(med_r0 = quantile(x = rnot_samp, probs=0.5))
 
+tx_outline <- map_data(map="state") %>% filter(region=="texas")
+
 rnot_plot <- map_data(map = "county") %>% filter(region=="texas") %>%
   mutate(subregion = if_else(subregion=="de witt", "dewitt", subregion)) %>%
   left_join(est_med_r0, by=c("subregion" = "county"))  %>%
@@ -118,6 +120,7 @@ rnot_plot <- map_data(map = "county") %>% filter(region=="texas") %>%
   ggplot(aes(x=long, y=lat, fill = med_r0, group = subregion)) + facet_wrap(~month)+
     geom_polygon(color = "gray", size=0.1) +
     theme_nothing() +
+    geom_polygon(data=tx_outline, aes(x=long, y=lat), fill=NA, size=0.1,color="black", inherit.aes = FALSE) +
     scale_fill_gradient(low="white", high="blue",
                         guide = guide_colorbar(title=expression("R"[0]), barheight=10))
 rnot_plot

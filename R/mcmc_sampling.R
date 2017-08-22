@@ -1,41 +1,6 @@
-
-get_gamma_parms <- function(rnots){
-  require(MASS)
-  fit <- try(fitdistr(as.numeric(unlist(rnots)), "gamma"), silent = T)
-  if(class(fit) == "try-error"){
-    # browser()
-    list(estimate=c(shape=mean(as.numeric(unlist(rnots))), rate=1))
-  } else{
-    fit
-  }
-}
-
-
-get_alpha_parms_r0_dist_mcmc <- function(tx_data, curr_date, county_r0_dists, reporting_rate){
-  tx_data <- tx_data %>% filter( notification_date <= curr_date) %>%
-    group_by(county, month, sec_trans) %>%
-    summarize(imports = n())
-
-  rnot_data <- left_join(tx_data, county_r0_dists, by = c("county", "month")) %>%
-    ungroup() %>%
-    select(starts_with("V"))
-
-
-  num_rnots <- nrow(rnot_data)
-  gamma_parms <- data_frame(shape = rep(0, num_rnots), rate = rep(0,num_rnots))
-  for(ind in 1:nrow(rnot_data)){
-    fit_gamma <- get_gamma_parms(rnot_data[ind,])
-    gamma_parms[ind,] <- c(fit_gamma$estimate["shape"], fit_gamma$estimate["rate"])
-  }
-  subs_parms(list(rnot = NA,
-                  rnot_dist = gamma_parms,
-                  num_intros = tx_data$imports,
-                  distribution="nbinom",
-                  date=curr_date,
-                  reporting_rate=reporting_rate,
-                  secondary_trans = tx_data$sec_trans,
-                  county_month = paste0(tx_data$county, "_", tx_data$month)), zika_parms())
-}
+############################################
+## File holding all code necessary for running the mcmc
+############################################
 
 
 draw_zika_rnots <- function(gamma_parms){
@@ -49,12 +14,11 @@ lprior <- function(alpha, parms){
   sum(dgamma(parms$rnot, shape = parms$rnot_dist$shape, rate = parms$rnot_dist$rate, log = T))
 }
 
-llprior <- function(alpha, parms, disp_df){
-  loglik <- try(scaling_loglike_cpp(alpha = alpha, params = parms, disp_df = disp_df))
+llprior <- function(alpha, parms){
+  loglik <- try(scaling_loglike_cpp(alpha = alpha, params = parms))
   if(class(loglik) == "try-error"){browser()}
   prior <- lprior(alpha, parms)
   # print(paste0("loglik: ", loglik, " prior: ", prior))
-  return(loglik + prior)
 }
 
 
@@ -73,7 +37,6 @@ draw_new_rnots <- function(rnots, tuning){
 mcmc_zika_rnot <- function (zika_parms,
                             alpha_tuning,
                             rnot_tuning,
-                            disp_df,
                             burnin = 1000,
                             N= 10000,
                             thin = 1){
@@ -101,7 +64,7 @@ mcmc_zika_rnot <- function (zika_parms,
   }
   ###### Calc log like + log prior
   curr_parms <- subs_parms(list(rnot = curr_rnots), zika_parms)
-  curr_llprior <- llprior(curr_alpha, curr_parms, disp_df)
+  curr_llprior <- llprior(curr_alpha, curr_parms)
 
   ##### No longer save first results
   # saved_samps[1, ] <- c(curr_llprior, curr_alpha, curr_rnots)
@@ -120,7 +83,7 @@ mcmc_zika_rnot <- function (zika_parms,
 
     ###### Calc log like
     proposed_parms <- subs_parms(list(rnot = proposed_rnots), zika_parms)
-    proposed_llprior <- llprior(proposed_alpha, proposed_parms, disp_df)
+    proposed_llprior <- llprior(proposed_alpha, proposed_parms)
 
     mh_prob <- proposed_llprior - curr_llprior
     if(is.na(mh_prob) | is.infinite(mh_prob)) browser()
