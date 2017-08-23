@@ -44,17 +44,17 @@ county_r0_historic_dists <- rnot_calc_dist(tx_county$mosquito.abundance,
                  eip.fun.list=eip.fun,
                  scam.est.list=scam.est.list)
 
-county_r0_historic_dists <- county_r0_historic_dists %>% mutate(county = tx_county[["county"]], month=tx_county[["month"]]) %>%
-  select(county, month, everything())
+county_r0_historic_dists <- county_r0_historic_dists %>% mutate(county = tx_county[["county"]], month=tx_county[["month"]], year = 1960) %>%
+  select(county, year, month, everything())
 
 save(county_r0_historic_dists, file = "data_produced/county_r0_historic_dists.rda")
 
 
 load("data_produced/county_r0_historic_dists.rda")
 tx_historic_county <- tx_county %>%
-                mutate(low_r0 = apply(county_r0_historic_dists[,-(1:2)], 1, quantile, probs=c(0.025)),
-                       med_r0 = apply(county_r0_historic_dists[,-(1:2)], 1, quantile, probs=c(0.5)),
-                       high_r0 = apply(county_r0_historic_dists[,-(1:2)], 1, quantile, probs=c(0.975)))
+                mutate(low_r0 = apply(county_r0_historic_dists[,-(1:3)], 1, quantile, probs=c(0.025)),
+                       med_r0 = apply(county_r0_historic_dists[,-(1:3)], 1, quantile, probs=c(0.5)),
+                       high_r0 = apply(county_r0_historic_dists[,-(1:3)], 1, quantile, probs=c(0.975)))
 
 
 tx_historic_county_rnots <- tx_historic_county %>% mutate(month = factor(month, levels = month.abb))
@@ -62,7 +62,8 @@ tx_historic_county_rnots <- tx_historic_county %>% mutate(month = factor(month, 
 save(tx_historic_county_rnots, file = "data_produced/tx_county_historic_summary_rnots.rda")
 
 
-################# Actual Temperature calculation
+#############################################################
+################# Actual Temperature calculation from 2016/17 instead of historic
 ########################################
 ## Temperature Data
 ########################################

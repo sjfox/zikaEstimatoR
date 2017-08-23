@@ -10,16 +10,79 @@ library(maps)
 library(lubridate)
 library(stringr)
 library(scales)
-
+library(ggjoy)
+###################################################################################
+## Fxn for adding proper color scaling/outline to maps
+tx_outline <- map_data(map="state") %>% filter(region=="texas")
+add_map_scale <- function(gmap, max_rnot, texas = tx_outline){
+  if(max_rnot > 1){
+    gmap <- gmap +
+      scale_fill_gradientn(name = expression("R"[0]), na.value = "white",
+                           colours = c("white", "blue", "yellow", "red"),
+                           values = scales::rescale(c(0, 1, 1.000001, max_rnot)),
+                           guide = guide_colorbar(title=expression("R"[0]), barheight=10))
+  } else{
+    gmap <- gmap +
+            scale_fill_gradient(low="white", high="blue",
+                          guide = guide_colorbar(title=expression("R"[0]), barheight=10))
+  }
+  gmap <- gmap + geom_polygon(data=texas, aes(x=long, y=lat), fill=NA, size=0.1,color="black", inherit.aes = FALSE)
+  gmap
+}
+###################################################################################
 
 
 ###############################
-## Conceptual figure 1
+## Raw R0 and importation data Figure 1
 ###############################
+tx_imports <- read_csv("data/Zika Disease Cases by Notification Date as of 030617.csv")
 
+import_data <- tx_imports %>% mutate(notification_date = mdy(`First Notification Date`)) %>%
+  #filter(notification_date<max_date) %>%
+  mutate(month = as.character(month(notification_date, label=TRUE, abbr = T)),
+         county = tolower(str_replace_all(County, " County", ""))) %>%
+  select(county, notification_date, month) %>%
+  group_by(notification_date) %>%
+  summarise(num_imports = n()) %>%
+  mutate(cum_imports = cumsum(num_imports))
+
+arrow_data <- data_frame(date = ymd(c("2016-11-21", "2016-12-12")),
+                         ystart = c(7,7),
+                         yend = c(3,5))
+
+
+import_plot <- import_data %>%
+  ggplot(aes(notification_date, num_imports)) +
+  geom_bar(stat="identity", width=2) +
+  labs(y="Importations", x = NULL) +
+  scale_x_date(labels = date_format("%b"), breaks=date_breaks("month"))+
+  scale_y_continuous(expand=c(0,0))+
+  geom_segment(data = arrow_data, aes(x =date, xend=date,y=ystart, yend=yend),
+               arrow = arrow(length = unit(0.3,"cm")), size=1, color="Red")
+import_plot
+
+load("data_produced/tx_county_actual_summary_rnots.rda")
+
+prior_rnot_plot <- import_data %>%
+  mutate(month = month(notification_date, label = T, abbr = T),
+         year = year(notification_date)) %>%
+  left_join(tx_actual_county_rnots, by = c("month","year")) %>%
+  ggplot(aes(notification_date, med_r0, group = county)) +
+  geom_line(alpha=0.3) +
+  #geom_ribbon(aes(ymax=high, ymin=low), alpha=.2) +
+  scale_x_date(labels = date_format("%b"), breaks=date_breaks("month")) +
+  labs(y = expression("County R"[0]), x = NULL)
+prior_rnot_plot
+
+fig1 <- plot_grid(prior_rnot_plot, import_plot, nrow = 2, align="v", labels = "AUTO")
+save_plot("ms_figs/f1_priorr0_import.png", fig1, base_height = 5, base_aspect_ratio = 1.6)
+
+###############################
+## Conceptual figure 2
+###############################
 load("data_produced/fig1_data.rda")
 
-
+## Prior/posterior densities
 fake_alpha_dat %>% filter(intros %in% c(0, 15)) %>%
   mutate(month_scaled = if_else(month_scaled=="Aug", "Harris August Estimate", "Harris September Projection"),
          intros = if_else(intros==0, "a priori", "posterior")) %>%
@@ -36,24 +99,13 @@ fake_alpha_dat %>% filter(intros %in% c(0, 15)) %>%
   scale_color_manual(values = c("black", "gray70"))   -> updated_rnot_plot
 updated_rnot_plot
 
-# August\nImportations\nWithout\nTransmission ## this was earlier legend title
-
-## Expected secondary cases for Importation Month -- inset to previous figure
-# exp_secondary_cases %>% filter(month=="Aug") %>%
-#   ggplot(aes(secondary_cases, probability)) +
-#   geom_bar(stat="identity", position="dodge", fill = "#1b9e77", color = "#1b9e77", alpha=0.6) +
-#   coord_cartesian(expand=F) +
-#   theme(legend.position = "none", legend.title = element_blank(),plot.background = element_rect(size=1, color="grey", linetype = 1)) +
-#   labs(x = expression("2"~degree*" Cases"), y = "Probability") -> secondary_dist_plot
-# secondary_dist_plot
 
 
+## Setup the maps for part b
 fake_county_plot_dat <- county_fake_rnots %>%
   filter(intros %in% c(0,15)) %>%
   group_by(county, month,intros) %>%
   summarise(med_rnot = median(rnots))
-#
-# fake_county_plot_dat %>% ggplot(aes(med_rnot)) + geom_density() + facet_wrap(~intros, nrow=2)
 
 map_data(map = "county") %>% filter(region=="texas") %>%
   mutate(subregion = if_else(subregion=="de witt", "dewitt", subregion)) %>%
@@ -63,20 +115,117 @@ map_data(map = "county") %>% filter(region=="texas") %>%
          intros = factor(intros, levels = c("August a priori", "August Posterior"))) %>%
   ggplot(aes(x=long, y=lat, fill = med_rnot, group = subregion)) + facet_wrap(~intros, nrow=1)+
   geom_polygon(color = "gray", size=0.1) +
-  theme_nothing() + theme(strip.text = element_text(size=16))+
-  scale_fill_gradientn(name = expression("R"[0]), na.value = "white",
-                      colours = c("white", "blue", "yellow", "red"),
-                      values = scales::rescale(c(0, 1, 1.000001, max(fake_county_plot_dat %>% ungroup() %>% select(med_rnot), na.rm=T))),
-                      guide = guide_colorbar(title=expression("R"[0]), barheight=10)) -> update_map_plot
+  theme_nothing() + theme(strip.text = element_text(size=16)) -> update_map_plot
 
-combined_fig1 <- plot_grid(updated_rnot_plot, update_map_plot, nrow = 2,labels = "AUTO")
+update_map_plot <- add_map_scale(update_map_plot, max_rnot = max(fake_county_plot_dat %>% ungroup() %>% select(med_rnot), na.rm=T))
+update_map_plot
 
-save_plot(filename = "ms_figs/f1_scaling_example.png", plot = combined_fig1, base_height = 7, base_aspect_ratio = 1.2)
+combined_example_fig2 <- plot_grid(updated_rnot_plot, update_map_plot, nrow = 2,labels = "AUTO")
 
-fig1 <- ggdraw(combined_fig1) +
-          draw_plot(plot = secondary_dist_plot, x = .2415, y=.73, width = 0.25, height = 0.21)
+save_plot(filename = "ms_figs/f2_scaling_example.png", plot = combined_example_fig2, base_height = 7, base_aspect_ratio = 1.2)
 
-save_plot(filename = "ms_figs/f1_scaling_example_maps.png", plot = fig1, base_height = 8, base_aspect_ratio = 1.2)
+# fig1 <- ggdraw(combined_fig1) +
+#           draw_plot(plot = secondary_dist_plot, x = .2415, y=.73, width = 0.25, height = 0.21)
+#
+# save_plot(filename = "ms_figs/f1_scaling_example_maps.png", plot = fig1, base_height = 8, base_aspect_ratio = 1.2)
+
+###########################################
+## Figure 3 - Posterior R0s for each month
+###########################################
+
+get_posterior_rnot_data <- function(temperature, include_trans, reporting_rate){
+  ## temperature = "actual" or "historic" - specifies if actualy 2016/17 temps were used or historic ones
+  ## include_trans = c(NA, 1, 5) - specifies how many secondary transmission cases should be used in November Cameron county
+  ## reporting_rate = c(0.01, 0.0282, 0.0574, 0.0866, 0.1, 0.2) - assumed reporting rate of 0.0574 for most results in paper
+  all_post_files <- list.files(path = "data_produced/posterior_estimates", pattern = "county_posterior_rnots*")
+  path <- paste0("county_posterior_rnots_", temperature, "_",
+                 ifelse(is.na(include_trans), 0, include_trans), "_", reporting_rate,".rda")
+  if(!path %in% all_post_files){
+    stop("Either your path is incorrect, your parameters are incorrect, or you haven't run the posterior estimation for the parameter combination.")
+  }
+  load(paste0("data_produced/posterior_estimates/", path))
+  est_posterior
+}
+
+plot_monthly_post_rnots <- function(posterior_rnots, quant = 0.5){
+  ## Plots faceted years worth of maps for posterior R0 estimates
+  ## quants specifies what quantile to plot 0.5 is median
+  est_r0 <- posterior_rnots %>% select(-alpha) %>%
+    group_by(county, month) %>%
+    summarise(r0 = quantile(x = rnot_samp, probs=quant))
+
+  rnot_plot <- map_data(map = "county") %>% filter(region=="texas") %>%
+    mutate(subregion = if_else(subregion=="de witt", "dewitt", subregion)) %>%
+    left_join(est_r0, by=c("subregion" = "county"))  %>%
+    mutate(month = factor(month, levels=month.abb)) %>%
+    ggplot(aes(x=long, y=lat, fill = r0, group = subregion)) + facet_wrap(~month)+
+    geom_polygon(color = "gray", size=0.1) +
+    theme_nothing()
+
+  rnot_plot <- add_map_scale(rnot_plot, max_rnot = max(est_med_r0$med_r0, na.rm=T))
+  rnot_plot
+}
+
+f3_data <- get_posterior_rnot_data("historic", 1, 0.0574)
+f3_posterior_maps <- plot_monthly_post_rnots(f3_data, 0.5)
+f3_posterior_maps
+
+save_plot("ms_figs/f3_posterior_maps.png", plot = f3_posterior_maps, base_height = 5, base_aspect_ratio = 1.3)
+
+
+###########################################
+## Figure 4 - Changing Alpha through time
+###########################################
+alpha_plot_fxn <- function(alpha_data, reporting, num_sec_trans){
+  alpha_data %>% filter(reporting_rate == reporting, secondary_trans==num_sec_trans) %>%
+    mutate(date = ymd(date)) %>%
+    ggplot(aes(date, med)) +
+    geom_point(size=2) +
+    geom_errorbar(aes(ymin = low, ymax = high))+
+    labs(y = bquote("Scaling Factor ("~alpha~")"), x = "Date", color = "Reporting\nRate") +
+    theme(legend.position = c(0.2,0.5))+
+    coord_cartesian(ylim=c(0,1)) +
+    scale_x_date(labels = date_format("%b"), breaks=date_breaks("month"))
+}
+
+c_trans <- function(a, b, breaks = b$breaks, format = b$format) {
+  a <- as.trans(a)
+  b <- as.trans(b)
+
+  name <- paste(a$name, b$name, sep = "-")
+
+  trans <- function(x) a$trans(b$trans(x))
+  inv <- function(x) b$inverse(a$inverse(x))
+
+  trans_new(name, trans, inv, breaks, format)
+}
+
+rev_date <- c_trans("reverse", "date")
+
+
+load("data_produced/posterior_estimates/alpha_mcmc_rnot_dist_1_0.0574.rda")
+est_alphas_df %>% gather(date, alpha_samp, 1:ncol(est_alphas_df)) %>%
+  mutate(date = ymd(date)) %>%
+  mutate(days_since = as.numeric(date - min(date))) ->dat
+dat %>%
+  group_by(date) %>%
+  ggplot(aes(alpha_samp, date, group = date)) +
+  geom_joy(scale=50, rel_min_height = 0.01) +
+  # scale_y_reverse(labels = date_format("%b"), breaks=date_breaks("month"))+
+  scale_y_continuous(trans = rev_date)+
+  # scale_y_date(labels = date_format("%b"), breaks=date_breaks("month"), )+
+  theme_joy(grid = FALSE) -> alpha_joy
+
+alpha_joy
+
+save_plot("ms_figs/f4_alpha_joy.png", plot = alpha_joy, base_height = 8, base_aspect_ratio = 0.7)
+
+alpha_plot <- alpha_plot_fxn(post_alpha_ci, 0.0574, 1)
+alpha_plot
+
+save_plot("ms_figs/f4_alpha_notjoy.png", plot = alpha_plot, base_height = 4, base_aspect_ratio = 1.8)
+
+
 
 
 ###############################
@@ -186,42 +335,7 @@ save_plot("ms_figs/sf3_prior_vs_post.png", plot = prior_post_compare_plot, base_
 ############################
 load("data_produced/post_alpha_ci.rda")
 
-tx_imports <- read_csv("data/Zika Disease Cases by Notification Date as of 030617.csv")
 
-import_data <- tx_imports %>% mutate(notification_date = mdy(`First Notification Date`)) %>%
-  #filter(notification_date<max_date) %>%
-  mutate(month = as.character(month(notification_date, label=TRUE, abbr = T)),
-         county = tolower(str_replace_all(County, " County", ""))) %>%
-  select(county, notification_date, month) %>%
-  group_by(notification_date) %>%
-  summarise(num_imports = n()) %>%
-  mutate(cum_imports = cumsum(num_imports))
-
-arrow_data <- data_frame(date = ymd(c("2016-11-21", "2016-12-12")),
-                         ystart = c(7,7),
-                         yend = c(3,5))
-
-
-import_plot <- import_data %>%
-  ggplot(aes(notification_date, num_imports)) +
-    geom_bar(stat="identity", width=2) +
-    labs(y="Importations", x = NULL) +
-    scale_x_date(labels = date_format("%b"), breaks=date_breaks("month"))+
-    scale_y_continuous(expand=c(0,0))+
-    geom_segment(data = arrow_data, aes(x =date, xend=date,y=ystart, yend=yend),
-                 arrow = arrow(length = unit(0.3,"cm")), size=1, color="Red")
-import_plot
-
-
-prior_rnot_plot <- import_data %>%
-  mutate(month = month(notification_date, label = T, abbr = T)) %>%
-  left_join(tx_county_rnots, by = "month") %>%
-  ggplot(aes(notification_date, med_r0, group=county)) +
-    geom_line(alpha=0.3) +
-    #geom_ribbon(aes(ymax=high, ymin=low), alpha=.2) +
-    scale_x_date(labels = date_format("%b"), breaks=date_breaks("month")) +
-    labs(y = expression("County R"[0]), x = NULL)
-prior_rnot_plot
 
 alpha_plot_fxn <- function(alpha_data, reporting, num_sec_trans){
   alpha_data %>% filter(reporting_rate == reporting, secondary_trans==num_sec_trans) %>%
@@ -523,4 +637,15 @@ save_plot("ms_figs/f4_prob_det_sec_trans.png", fig4, base_height = 5, base_aspec
 # # County alpha scaling R0 plot
 # ############################
 
+################################
+## Old inset figure
+# August\nImportations\nWithout\nTransmission ## this was earlier legend title
+## Expected secondary cases for Importation Month -- inset to previous figure
+# exp_secondary_cases %>% filter(month=="Aug") %>%
+#   ggplot(aes(secondary_cases, probability)) +
+#   geom_bar(stat="identity", position="dodge", fill = "#1b9e77", color = "#1b9e77", alpha=0.6) +
+#   coord_cartesian(expand=F) +
+#   theme(legend.position = "none", legend.title = element_blank(),plot.background = element_rect(size=1, color="grey", linetype = 1)) +
+#   labs(x = expression("2"~degree*" Cases"), y = "Probability") -> secondary_dist_plot
+# secondary_dist_plot
 

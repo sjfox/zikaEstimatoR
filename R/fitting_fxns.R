@@ -55,7 +55,7 @@ get_alpha_parms_r0_dist_mcmc <- function(tx_data, curr_date, county_r0_dists, re
                   county_month_year = paste0(tx_data$county, "_", tx_data$month, "_", tx_data$year)), zika_parms())
 }
 
-get_mcmc_parm_list <- function(include_trans, reporting_rate, temperature){
+get_mcmc_parm_list <- function(include_trans, reporting_rate, temperature, last_only=FALSE){
   ## Function gives the full parm list for running mcmc on every single date of importation
   ## Can call this function with specified parms, and get a list with elements ready-to-go for mcmc
 
@@ -76,19 +76,23 @@ get_mcmc_parm_list <- function(include_trans, reporting_rate, temperature){
   if(temperature=="historic"){
     load("data_produced/county_r0_historic_dists.rda")
     tx_data <- tx_imports  %>% mutate(month = factor(month, levels = month.abb), year = 1960)
-    county_r0_historic_dists <- county_r0_historic_dists %>% mutate(year = 1960)
-
-    unique(tx_data$notification_date) %>%
-      purrr::map(~get_alpha_parms_r0_dist_mcmc(tx_data, curr_date=.x, county_r0_dists = county_r0_historic_dists, reporting_rate=as.numeric(reporting_rate)))
+    county_r0s <- county_r0_historic_dists
   } else if(temperature == "actual"){
     load("data_produced/county_r0_actual_dists.rda")
     tx_data <- tx_imports  %>% mutate(month = factor(month, levels = month.abb), year = year(notification_date))
-
-    unique(tx_data$notification_date) %>%
-      purrr::map(~get_alpha_parms_r0_dist_mcmc(tx_data, curr_date=.x, county_r0_dists = county_r0_actual_dists, reporting_rate=as.numeric(reporting_rate)))
+    county_r0s <- county_r0_actual_dists
   } else{
     stop("incorrect specification of temperature")
   }
+
+  if(last_only){
+    unique(tx_data$notification_date)[length(unique(tx_data$notification_date))] %>%
+      purrr::map(~get_alpha_parms_r0_dist_mcmc(tx_data, curr_date=.x, county_r0_dists = county_r0s, reporting_rate=as.numeric(reporting_rate)))
+  } else{
+    unique(tx_data$notification_date) %>%
+      purrr::map(~get_alpha_parms_r0_dist_mcmc(tx_data, curr_date=.x, county_r0_dists = county_r0s, reporting_rate=as.numeric(reporting_rate)))
+  }
+
 }
 
 
