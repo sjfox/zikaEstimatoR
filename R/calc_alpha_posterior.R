@@ -29,6 +29,9 @@ if(grepl('wrangler', Sys.info()['nodename'])) setwd(file.path('/home/02958/sjf82
 
 sapply(c("R/fitting_fxns.R", "R/mcmc_sampling.R"), source)
 
+## Run this line if running locally on Rstudio, without command line parameters
+# include_trans = 1; reporting_rate = 0.0574; temperature = "actual"
+
 ## Get the parameter lists as specified by parm arguments
 daily_parms <- get_mcmc_parm_list(include_trans, reporting_rate, temperature)
 # load("data_produced/dispersion_df.rda") # No longer needed
@@ -36,10 +39,10 @@ daily_parms <- get_mcmc_parm_list(include_trans, reporting_rate, temperature)
 ##########################################################
 ## Run the MCMC for each day and combine into a single data frame holding all the alpha data
 ##########################################################
+
 est_alphas <- purrr::map(daily_parms, mcmc_zika_rnot,
                          alpha_tuning = .1,
                          rnot_tuning = .1,
-                         # disp_df = dispersion_df, # No longer needed
                          burnin = 100000,
                          N = 200000,
                          thin=10)

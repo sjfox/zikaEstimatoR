@@ -19,6 +19,7 @@ llprior <- function(alpha, parms){
   if(class(loglik) == "try-error"){browser()}
   prior <- lprior(alpha, parms)
   # print(paste0("loglik: ", loglik, " prior: ", prior))
+  return(loglik + prior)
 }
 
 
