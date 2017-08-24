@@ -18,12 +18,12 @@ add_map_scale <- function(gmap, max_rnot, texas = tx_outline){
   if(max_rnot > 1){
     gmap <- gmap +
       scale_fill_gradientn(name = expression("R"[0]), na.value = "white",
-                           colours = c("white", "blue", "yellow", "red"),
+                           colours = c("white", "#264BAC", "#ffeda0", "#8A1923"),
                            values = scales::rescale(c(0, 1, 1.000001, max_rnot)),
                            guide = guide_colorbar(title=expression("R"[0]), barheight=10))
   } else{
     gmap <- gmap +
-            scale_fill_gradient(low="white", high="blue",
+            scale_fill_gradient(low="white", high="#264BAC",
                           guide = guide_colorbar(title=expression("R"[0]), barheight=10))
   }
   gmap <- gmap + geom_polygon(data=texas, aes(x=long, y=lat), fill=NA, size=0.1,color="black", inherit.aes = FALSE)
@@ -151,8 +151,12 @@ plot_monthly_post_rnots <- function(posterior_rnots, quant = 0.5){
   ## Plots faceted years worth of maps for posterior R0 estimates
   ## quants specifies what quantile to plot 0.5 is median
   est_r0 <- posterior_rnots %>% select(-alpha) %>%
-    group_by(county, month) %>%
-    summarise(r0 = quantile(x = rnot_samp, probs=quant))
+    group_by(county, month, year) %>%
+    summarise(r0 = quantile(x = rnot_samp, probs=quant, na.rm=T))
+
+  if(length(unique(est_r0$year)) > 1){
+    est_r0 <- est_r0 %>% filter(year==2016)
+  }
 
   rnot_plot <- map_data(map = "county") %>% filter(region=="texas") %>%
     mutate(subregion = if_else(subregion=="de witt", "dewitt", subregion)) %>%
@@ -162,13 +166,14 @@ plot_monthly_post_rnots <- function(posterior_rnots, quant = 0.5){
     geom_polygon(color = "gray", size=0.1) +
     theme_nothing()
 
-  rnot_plot <- add_map_scale(rnot_plot, max_rnot = max(est_med_r0$med_r0, na.rm=T))
+  rnot_plot <- add_map_scale(rnot_plot, max_rnot = max(est_r0$r0, na.rm=T))
   rnot_plot
 }
 
-f3_data <- get_posterior_rnot_data("historic", 1, 0.0574)
+f3_data <- get_posterior_rnot_data("actual", 1, 0.0574)
 f3_posterior_maps <- plot_monthly_post_rnots(f3_data, 0.5)
 f3_posterior_maps
+
 
 save_plot("ms_figs/f3_posterior_maps.png", plot = f3_posterior_maps, base_height = 5, base_aspect_ratio = 1.3)
 
@@ -202,28 +207,69 @@ c_trans <- function(a, b, breaks = b$breaks, format = b$format) {
 
 rev_date <- c_trans("reverse", "date")
 
+tx_temps <- read_csv("data/tx_historic_temps.csv")
+tx_temps <- tx_temps %>% mutate(month = factor(month, levels = month.abb)) %>%
+  group_by(month) %>%
+  summarise(avg_temp = mean(avg_temp))
+tx_temps
 
+month_dates <- seq(ymd("2016-01-01"),ymd("2017-03-01"), "month")
 load("data_produced/posterior_estimates/alpha_mcmc_rnot_dist_1_0.0574.rda")
 est_alphas_df %>% gather(date, alpha_samp, 1:ncol(est_alphas_df)) %>%
-  mutate(date = ymd(date)) %>%
-  mutate(days_since = as.numeric(date - min(date))) ->dat
-dat %>%
+  mutate(date = ymd(date),
+         month = month(date, label = TRUE)) %>%
+  mutate(days_since = as.numeric(date - min(date))) %>%
   group_by(date) %>%
-  ggplot(aes(alpha_samp, date, group = date)) +
-  geom_joy(scale=50, rel_min_height = 0.01) +
-  # scale_y_reverse(labels = date_format("%b"), breaks=date_breaks("month"))+
-  scale_y_continuous(trans = rev_date)+
-  # scale_y_date(labels = date_format("%b"), breaks=date_breaks("month"), )+
-  theme_joy(grid = FALSE) -> alpha_joy
-
+  left_join(tx_temps, by="month") %>%
+  ggplot(aes(alpha_samp, date, group = date, fill = avg_temp)) +
+    geom_joy(scale=50, rel_min_height = 0.01) +
+    scale_y_continuous(trans = rev_date, breaks = month_dates, labels = date_format("%b-%y")) +
+    scale_x_continuous(breaks = c(0,0.25,0.5, 0.75,1), expand = c(0.01, 0))+
+    theme_joy() + theme(panel.grid.major = element_line(color="gray50"))+
+    scale_fill_gradient(low="#FEEDED", high="#8A1923") +
+    guides(fill = guide_colorbar(title = "Average State\nTemperature", barheight = 10,barwidth = 2)) +
+    labs(x = bquote("Scaling Factor ("~alpha~")"), y = "Date") -> alpha_joy
 alpha_joy
 
-save_plot("ms_figs/f4_alpha_joy.png", plot = alpha_joy, base_height = 8, base_aspect_ratio = 0.7)
+save_plot("ms_figs/f4_alpha_joy.png", plot = alpha_joy, base_height = 8, base_aspect_ratio = 1)
+#
+# alpha_plot <- alpha_plot_fxn(post_alpha_ci, 0.0574, 1)
+# alpha_plot
+#
+# save_plot("ms_figs/f4_alpha_notjoy.png", plot = alpha_plot, base_height = 4, base_aspect_ratio = 1.8)
 
-alpha_plot <- alpha_plot_fxn(post_alpha_ci, 0.0574, 1)
-alpha_plot
+########################################
+## Figure 5 - validation step and expected number of secondary cases
+########################################
+load("data_produced/posterior_prob_sec_trans.rda")
+prob_detect <- prob_sec %>%
+  filter(year==2016) %>%
+  ggplot(aes(month_num, mean_prob*0.0574, group = county)) +
+  geom_line(alpha=0.5) +
+  scale_x_continuous(breaks = 1:12, labels = month.abb) +
+  scale_y_continuous(expand = c(0,0))+
+  labs(y = "Probability Detect Secondary Case", x = "")
+prob_detect
 
-save_plot("ms_figs/f4_alpha_notjoy.png", plot = alpha_plot, base_height = 4, base_aspect_ratio = 1.8)
+load("data_produced/exp_detected_cases.rda")
+text_replace <- c("All Importations Reported", "Only Fraction Reported")
+exp_detected_cases %>%
+  mutate(estimate = if_else(estimate=="Low", text_replace[1], text_replace[2])) -> exp_detected_cases
+
+detected_case_plot <- exp_detected_cases %>%
+  ggplot(aes(det_cases)) +
+  geom_histogram(data = filter(exp_detected_cases, estimate==text_replace[1]), aes(y=..density..), binwidth=1, fill="black") +
+  geom_histogram(data = filter(exp_detected_cases, estimate==text_replace[2]), aes(y=..density..),binwidth=10, fill="black") +
+  facet_wrap(~estimate, nrow=2, scales = "free_y") +
+  theme(strip.background = element_blank(), strip.text = element_text(size=16)) +
+  coord_cartesian(expand=FALSE, xlim=c(0,210)) +
+  panel_border(colour = "black") +
+  labs(y="", x = "Expected detected autochthonous cases")
+detected_case_plot
+
+f5_exp_sec_cases <- plot_grid(prob_detect, detected_case_plot, nrow = 1, labels = "AUTO")
+
+save_plot("ms_figs/f5_exp_sec_cases.png", f5_exp_sec_cases, base_height = 5, base_aspect_ratio = 2.2)
 
 
 
@@ -389,35 +435,6 @@ save_plot("ms_figs/sf5_daily_alpha_show_reporting.png", alpha_plot_show_reportin
 # Understanding monthly risk for secondary transmission plot
 #############################################################
 
-## 67 derived from the cty_sec_trans.R script
-## Needs to be updated depending on posterior R0 analysis
-binom_plot <- data_frame(x = 0:15) %>%
-  mutate(dens_low = dbinom(x, size = 37, prob = 0.0574),
-         dens_high = dbinom(x, size = 114, prob = 0.0574),
-         bar_color = if_else(x==2,"yes", "no")) %>%
-  gather(key, value, dens_low:dens_high) %>%
-  mutate(key = factor(if_else(key=="dens_low", "Low", "High"), levels = c("Low", "High"))) %>%
-  ggplot(aes(x,value, fill=bar_color)) + facet_wrap(~key, nrow=2) +
-  geom_histogram(stat="identity") +
-  scale_y_continuous(expand=c(0,0)) +
-  theme(strip.background = element_rect(fill = NA)) +
-  labs(y="Probability", x = "Autochthonous Cases Detected") +
-  scale_fill_manual(values = c("black", "grey80"), guide=FALSE)
-binom_plot
-
-
-load("data_produced/posterior_prob_sec_trans.rda")
-prob_detect <- prob_sec %>%
-    ggplot(aes(month_num, mean_prob*0.0574, group = county)) +
-      geom_line(alpha=0.5) +
-      scale_x_continuous(breaks = 1:12, labels = month.abb) +
-      scale_y_continuous(expand = c(0,0))+
-      labs(y = "Probability Detect Secondary Case", x = "")
-prob_detect
-
-fig4 <- plot_grid(prob_detect, binom_plot, nrow = 1, labels = "AUTO", rel_widths = c(1,.75))
-
-save_plot("ms_figs/f4_prob_det_sec_trans.png", fig4, base_height = 5, base_aspect_ratio = 2.2)
 
 
 ############################################################################
@@ -648,4 +665,18 @@ save_plot("ms_figs/f4_prob_det_sec_trans.png", fig4, base_height = 5, base_aspec
 #   theme(legend.position = "none", legend.title = element_blank(),plot.background = element_rect(size=1, color="grey", linetype = 1)) +
 #   labs(x = expression("2"~degree*" Cases"), y = "Probability") -> secondary_dist_plot
 # secondary_dist_plot
+
+# binom_plot <- data_frame(x = 0:15) %>%
+#   mutate(dens_low = dbinom(x, size = 37, prob = 0.0574),
+#          dens_high = dbinom(x, size = 114, prob = 0.0574),
+#          bar_color = if_else(x==2,"yes", "no")) %>%
+#   gather(key, value, dens_low:dens_high) %>%
+#   mutate(key = factor(if_else(key=="dens_low", "Low", "High"), levels = c("Low", "High"))) %>%
+#   ggplot(aes(x,value, fill=bar_color)) + facet_wrap(~key, nrow=2) +
+#   geom_histogram(stat="identity") +
+#   scale_y_continuous(expand=c(0,0)) +
+#   theme(strip.background = element_rect(fill = NA)) +
+#   labs(y="Probability", x = "Autochthonous Cases Detected") +
+#   scale_fill_manual(values = c("black", "grey80"), guide=FALSE)
+# binom_plot
 

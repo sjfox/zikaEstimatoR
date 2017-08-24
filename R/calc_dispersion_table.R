@@ -6,11 +6,6 @@
 rm(list=ls())
 library(tidyverse)
 
-load("data_produced/county_r0_actual_dists.rda")
-max(county_r0_actual_dists, na.rm=T)
-
-
-
 fit_dispersion <- function(dispersion){
   R0 = seq(0, 5, length.out=100)
 
@@ -45,6 +40,7 @@ for (i in 1:length(R0)) {
 plot(R0, p20.nb)
 lines(R0, p20.est)
 
+library(cowplot)
 
 
 #

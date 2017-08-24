@@ -207,6 +207,11 @@ for(ii in 2:length(scam.est.list)){
   lines(econ,predict(scam.est.list[[ii]],newdata=data.frame(econ=econ)),col=rgb(0,0,0,.1))
 }
 
+plot(mort.fun[[1]](1:40), type="l")
+for(ii in 2:length(mort.fun)){
+  lines(1:40, mort.fun[[ii]](1:40))
+}
+
 
 # save data
 save(reps,rep.master,scam.est.list,mort.fun,eip.fun,a,b,c.r,h.list,file='data_produced/vector_suitability/parms_fxns_r0.RData')
