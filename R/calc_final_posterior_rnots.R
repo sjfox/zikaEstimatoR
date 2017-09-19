@@ -21,70 +21,75 @@ sapply(c("R/fitting_fxns.R", "R/mcmc_sampling.R"), source)
 ## Define parameters for run
 set.seed(1023902)
 
-reporting_rate <- c(0.01, 0.0282, 0.0574, 0.0866, 0.1, 0.2)
-include_trans <- c(NA, "1", "5")
-temperature <- c("historic", "actual")
+## Uncomment to generate all
+# reporting_rate <- c(0.01, 0.0282, 0.0574, 0.0866, 0.1, 0.2)
+# include_trans <- c(NA, "1", "5")
+# temperature <- c("historic", "actual")
+# reporting_rate = 0.0574
+include_trans = "1"
+temperature = "actual"
+# trans_ind <- temp_ind <- 1
 
-for(ind in seq_along(reporting_rate)){
-  for(trans_ind in seq_along(include_trans)){
-    for(temp_ind in seq_along(temperature)){
-      print(paste0(reporting_rate[ind], " ", include_trans[trans_ind], " ", temperature[temp_ind]))
-      daily_parms <- get_mcmc_parm_list(include_trans[trans_ind], reporting_rate[ind], temperature[temp_ind], last_only=TRUE)
+for(trans_ind in seq_along(include_trans)){
+  for(temp_ind in seq_along(temperature)){
+    print(paste0(include_trans[trans_ind], " ", temperature[temp_ind]))
+    daily_parms <- get_mcmc_parm_list(include_trans[trans_ind], temperature[temp_ind], last_only=TRUE)
 
-      ## Get posterior distribution -- only returns posterior for county/months that had importations
-      posterior <- purrr::map(daily_parms, mcmc_zika_rnot,
-                               alpha_tuning = .1,
-                               rnot_tuning = .1,
-                               burnin = 100000,
-                               N = 200000,
-                               thin=10)
+    ## Get posterior distribution -- only returns posterior for county/months that had importations
+    posterior <- purrr::map(daily_parms, mcmc_zika_rnot,
+                             alpha_tuning = .1,
+                             rnot_tuning = .1,
+                             rr_tuning = .1,
+                             burnin = 100000,
+                             N = 200000,
+                             thin=10)
 
-      est_posterior <- posterior[[1]]$samples %>% as_data_frame() %>% select(-1)
+    est_posterior <- posterior[[1]]$samples %>% as_data_frame() %>% select(-1)
 
-      colnames(est_posterior) <- c("alpha", daily_parms[[1]]$county_month_year)
-
-
-      if(any(duplicated(colnames(est_posterior), fromLast = TRUE))){
-        # cameron months may be duplicated if it's scenario with secondary transmission,
-        # so remove one from each (they have the same values, so just remove either of them)
-        est_posterior <- est_posterior[,-which(duplicated(colnames(est_posterior), fromLast = TRUE))]
-      }
+    colnames(est_posterior) <- c("alpha", "reporting_rate", daily_parms[[1]]$county_month_year)
 
 
-      ## Function for drawing samples and returning county R0 estimate
-      sample_rnot_alpha <- function(alphas, rnots, size_vec = 10000){
-        sample(alphas,size = size_vec, replace = T) * sample(rnots, size=size_vec, replace = T)
-      }
-
-
-      if(temperature[temp_ind]=="historic"){
-        load("data_produced/county_r0_historic_dists.rda")
-        county_prior_r0s <- county_r0_historic_dists
-      } else{
-        load("data_produced/county_r0_actual_dists.rda")
-        county_prior_r0s <- county_r0_actual_dists
-      }
-
-      ## Now draw samples from the prior distribution and posterior alpha to fill in the county R0s that didn't experience importation
-      all_counties <- paste0(county_prior_r0s$county, "_", county_prior_r0s$month, "_", county_prior_r0s$year)
-      for(cty_mnth_yr in all_counties){
-        if(!cty_mnth_yr %in% colnames(est_posterior)){
-          ## For counties not already there, first extract the prior R0 samples
-          county_rnots <- as.numeric(county_prior_r0s[which(cty_mnth_yr==all_counties), -c(1,2,3)])
-
-          ## Now sample rnot and alpha from distributions
-          est_posterior[cty_mnth_yr] <- sample_rnot_alpha(alphas = est_posterior$alpha, rnots = county_rnots)
-        }
-      }
-
-      est_posterior <- est_posterior %>% gather(county, rnot_samp, 2:ncol(est_posterior)) %>%
-        separate(col = county, c("county", "month", "year"), sep="_")
-
-      save(est_posterior, file = paste0("data_produced/posterior_estimates/county_posterior_rnots_", temperature[temp_ind], "_",
-                                        ifelse(is.na(include_trans[trans_ind]), 0, include_trans[trans_ind]), "_", reporting_rate[ind],".rda"))
+    if(any(duplicated(colnames(est_posterior), fromLast = TRUE))){
+      # cameron months may be duplicated if it's scenario with secondary transmission,
+      # so remove one from each (they have the same values, so just remove either of them)
+      est_posterior <- est_posterior[,-which(duplicated(colnames(est_posterior), fromLast = TRUE))]
     }
+
+
+    ## Function for drawing samples and returning county R0 estimate
+    sample_rnot_alpha <- function(alphas, rnots, size_vec = 10000){
+      sample(alphas,size = size_vec, replace = T) * sample(rnots, size=size_vec, replace = T)
+    }
+
+
+    if(temperature[temp_ind]=="historic"){
+      load("data_produced/county_r0_historic_dists.rda")
+      county_prior_r0s <- county_r0_historic_dists
+    } else{
+      load("data_produced/county_r0_actual_dists.rda")
+      county_prior_r0s <- county_r0_actual_dists
+    }
+
+    ## Now draw samples from the prior distribution and posterior alpha to fill in the county R0s that didn't experience importation
+    all_counties <- paste0(county_prior_r0s$county, "_", county_prior_r0s$month, "_", county_prior_r0s$year)
+    for(cty_mnth_yr in all_counties){
+      if(!cty_mnth_yr %in% colnames(est_posterior)){
+        ## For counties not already there, first extract the prior R0 samples
+        county_rnots <- as.numeric(county_prior_r0s[which(cty_mnth_yr==all_counties), -c(1,2,3)])
+
+        ## Now sample rnot and alpha from distributions
+        est_posterior[cty_mnth_yr] <- sample_rnot_alpha(alphas = est_posterior$alpha, rnots = county_rnots)
+      }
+    }
+
+    est_posterior <- est_posterior %>% gather(county, rnot_samp, 3:ncol(est_posterior)) %>%
+      separate(col = county, c("county", "month", "year"), sep="_")
+
+    save(est_posterior, file = paste0("data_produced/posterior_estimates/county_posterior_rnots_", temperature[temp_ind], "_",
+                                      ifelse(is.na(include_trans[trans_ind]), 0, include_trans[trans_ind]),".rda"))
   }
 }
+
 
 
 #####################################################

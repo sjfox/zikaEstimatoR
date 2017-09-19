@@ -23,16 +23,14 @@ load("data_produced/county_r0_actual_dists.rda")
 ##############################################
 
 ## Fxn for setting up parameters for the mcmc
-get_fake_parms <- function(dist, intros, reporting_rate){
-  parms <- vector("list", length = length(intros)*length(reporting_rate))
+get_fake_parms <- function(dist, intros){
+  parms <- vector("list", length = length(intros))
   fit_gamma <- get_gamma_parms(t(dist))
   gamma_parms <- data_frame(shape = fit_gamma$estimate["shape"], rate = fit_gamma$estimate["rate"])
   ii <- 1
   for(intro in intros){
-    for(rate in reporting_rate){
-      parms[[ii]] <- subs_parms(list(rnot = NA, rnot_dist = gamma_parms, num_intros = intro, distribution="nbinom", reporting_rate=rate), zika_parms())
-      ii <- ii + 1
-    }
+    parms[[ii]] <- subs_parms(list(rnot = NA, rnot_dist = gamma_parms, num_intros = intro, distribution="nbinom"), zika_parms())
+    ii <- ii + 1
   }
   parms
 }
@@ -44,23 +42,23 @@ har_rnot_dists <- county_r0_actual_dists %>% filter(county=="harris", month %in%
 
 
 ## First going to solve for posterior distributions
-introductions <- c(15)
-rates <- c(0.0574)
-aug_parms <- har_rnot_dists %>% filter(month =="Aug") %>% select(rnot) %>% get_fake_parms(intros = introductions, reporting_rate = rates)
+introductions <- c(15, round(15/0.0574))
+aug_parms <- har_rnot_dists %>% filter(month =="Aug") %>% select(rnot) %>% get_fake_parms(intros = introductions)
 parms <- c(aug_parms)
 
 
 fake_alpha_mcmc <- parms %>% purrr::map(mcmc_zika_rnot,
                                         alpha_tuning = .1,
                                         rnot_tuning = .1,
+                                        rr_tuning = 0.1,
                                         burnin = 100000,
                                         N = 200000,
                                         thin=100)
 
 fake_alpha_df <- fake_alpha_mcmc %>% transpose()
-fake_alpha_df <- fake_alpha_df[[1]] %>% purrr::map(as_data_frame) %>% purrr::map(function(x) select(x, 2:3)) %>% bind_rows()
-colnames(fake_alpha_df) <- c("alpha", "Aug")
-fake_alpha_df <- fake_alpha_df %>% mutate(reporting_rate = 0.0574, intros = rep(introductions, each = 1000))
+fake_alpha_df <- fake_alpha_df[[1]] %>% purrr::map(as_data_frame) %>% purrr::map(function(x) select(x, 2:4)) %>% bind_rows()
+colnames(fake_alpha_df) <- c("alpha", "reporting_rate", "Aug")
+fake_alpha_df <- fake_alpha_df %>% mutate(intros = rep(introductions, each = 1000))
 
 
 ## Functions for scaling prior Rnots and getting the correct rnot distributions from distributions
@@ -76,7 +74,7 @@ get_rnots <- function(month_needed, rnot_dists){
 }
 
 fake_alpha_df <- fake_alpha_df %>%
-  group_by(intros, reporting_rate) %>%
+  group_by(intros) %>%
   mutate(Sep = scale_fake_rnots(get_rnots(months[2], har_rnot_dists), alpha)) %>%
   gather(month_scaled, scaled_rnot, Aug, Sep)
 
@@ -128,5 +126,5 @@ county_fake_rnots <- county_rnots_post %>% purrr::map(gather) %>% bind_rows() %>
 #   mutate(secondary_cases = as.numeric(secondary_cases)) -> exp_secondary_cases
 
 
-save(fake_alpha_dat, county_fake_rnots, file = "data_produced/fig1_data.rda")
+save(fake_alpha_dat, county_fake_rnots, file = "data_produced/fig2_data.rda")
 

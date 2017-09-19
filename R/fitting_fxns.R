@@ -29,7 +29,7 @@ get_gamma_parms <- function(rnots){
 }
 
 
-get_alpha_parms_r0_dist_mcmc <- function(tx_data, curr_date, county_r0_dists, reporting_rate){
+get_alpha_parms_r0_dist_mcmc <- function(tx_data, curr_date, county_r0_dists){
   tx_data <- tx_data %>% filter( notification_date <= curr_date) %>%
     group_by(county, month, sec_trans, year) %>%
     summarize(imports = n())
@@ -50,15 +50,14 @@ get_alpha_parms_r0_dist_mcmc <- function(tx_data, curr_date, county_r0_dists, re
                   num_intros = tx_data$imports,
                   distribution="nbinom",
                   date=curr_date,
-                  reporting_rate=reporting_rate,
                   secondary_trans = tx_data$sec_trans,
                   county_month_year = paste0(tx_data$county, "_", tx_data$month, "_", tx_data$year)), zika_parms())
 }
 
-get_mcmc_parm_list <- function(include_trans, reporting_rate, temperature, last_only=FALSE){
+get_mcmc_parm_list <- function(include_trans,  temperature, last_only=FALSE, extra_imports = FALSE){
   ## Function gives the full parm list for running mcmc on every single date of importation
   ## Can call this function with specified parms, and get a list with elements ready-to-go for mcmc
-
+  # browser()
   tx_imports <- read_csv("data/Zika Disease Cases by Notification Date as of 030617.csv")
   tx_imports <- tx_imports %>% mutate(notification_date = mdy(`First Notification Date`)) %>%
     arrange(notification_date)%>%
@@ -87,10 +86,10 @@ get_mcmc_parm_list <- function(include_trans, reporting_rate, temperature, last_
 
   if(last_only){
     unique(tx_data$notification_date)[length(unique(tx_data$notification_date))] %>%
-      purrr::map(~get_alpha_parms_r0_dist_mcmc(tx_data, curr_date=.x, county_r0_dists = county_r0s, reporting_rate=as.numeric(reporting_rate)))
+      purrr::map(~get_alpha_parms_r0_dist_mcmc(tx_data, curr_date=.x, county_r0_dists = county_r0s))
   } else{
     unique(tx_data$notification_date) %>%
-      purrr::map(~get_alpha_parms_r0_dist_mcmc(tx_data, curr_date=.x, county_r0_dists = county_r0s, reporting_rate=as.numeric(reporting_rate)))
+      purrr::map(~get_alpha_parms_r0_dist_mcmc(tx_data, curr_date=.x, county_r0_dists = county_r0s))
   }
 
 }

@@ -11,7 +11,8 @@ draw_zika_rnots <- function(gamma_parms){
 
 
 lprior <- function(alpha, parms){
-  sum(dgamma(parms$rnot, shape = parms$rnot_dist$shape, rate = parms$rnot_dist$rate, log = T))
+  sum(dgamma(parms$rnot, shape = parms$rnot_dist$shape, rate = parms$rnot_dist$rate, log = T)) +
+    dnorm(x = parms$reporting_rate, mean = 0.0574, sd = 0.0146, log = T)
 }
 
 llprior <- function(alpha, parms){
@@ -27,6 +28,9 @@ draw_new_alpha <- function(alpha, tuning){
   runif(1)
   # plogis(qlogis(alpha) + rnorm(1, sd = tuning))
 }
+draw_new_reporting_rate <- function(rr, tuning){
+  plogis(qlogis(rr) + rnorm(1, sd = tuning))
+}
 
 draw_new_rnots <- function(rnots, tuning){
   new_rnots <- exp(log(rnots) + rnorm(n = length(rnots), sd = tuning))
@@ -38,6 +42,7 @@ draw_new_rnots <- function(rnots, tuning){
 mcmc_zika_rnot <- function (zika_parms,
                             alpha_tuning,
                             rnot_tuning,
+                            rr_tuning,
                             burnin = 1000,
                             N= 10000,
                             thin = 1){
@@ -51,12 +56,15 @@ mcmc_zika_rnot <- function (zika_parms,
 
   ###### Create matrix for saving
   ## adding 2 extra columns into estimate, alpha posterior and loglike
-  saved_samps <- matrix(data = 0, nrow = (N-burnin)/thin, ncol = num_rnots+2)
+  saved_samps <- matrix(data = 0, nrow = (N-burnin)/thin, ncol = num_rnots+3)
 
   ###### Draw Rnots and alpha
   curr_rnots <- runif(num_rnots, min = 0, max = 2)
   ## Assumption that alpha is between 0 and 1, could change in future iterations
   curr_alpha <- runif(1)
+
+  ## test sampling reporting rate
+  curr_rr <- runif(1)
 
   ## Make sure duplicated county/month Rnots are the same
   ## Make the last instances equal the first ones
@@ -64,7 +72,7 @@ mcmc_zika_rnot <- function (zika_parms,
     curr_rnots[duplicated(zika_parms$county_month)] <- curr_rnots[duplicated(zika_parms$county_month, fromLast = TRUE)]
   }
   ###### Calc log like + log prior
-  curr_parms <- subs_parms(list(rnot = curr_rnots), zika_parms)
+  curr_parms <- subs_parms(list(rnot = curr_rnots, reporting_rate = curr_rr), zika_parms)
   curr_llprior <- llprior(curr_alpha, curr_parms)
 
   ##### No longer save first results
@@ -82,8 +90,10 @@ mcmc_zika_rnot <- function (zika_parms,
     ## Assumption that alpha is between 0 and 1, could change in future iterations
     proposed_alpha <- draw_new_alpha(curr_alpha, alpha_tuning)
 
+    proposed_rr <- draw_new_reporting_rate(curr_rr, rr_tuning)
+
     ###### Calc log like
-    proposed_parms <- subs_parms(list(rnot = proposed_rnots), zika_parms)
+    proposed_parms <- subs_parms(list(rnot = proposed_rnots, reporting_rate = proposed_rr), zika_parms)
     proposed_llprior <- llprior(proposed_alpha, proposed_parms)
 
     mh_prob <- proposed_llprior - curr_llprior
@@ -91,12 +101,13 @@ mcmc_zika_rnot <- function (zika_parms,
     if(mh_prob >= 0 | (runif(1) <= exp(mh_prob))){
       curr_alpha <- proposed_alpha
       curr_rnots <- proposed_rnots
+      curr_rr <- proposed_rr
       curr_llprior <- proposed_llprior
       accept <- accept + 1
     }
 
     if(N > burnin & ii %% thin == 0){
-      saved_samps[(ii - burnin)/thin, ] <- c(curr_llprior, curr_alpha, curr_alpha*curr_rnots)
+      saved_samps[(ii - burnin)/thin, ] <- c(curr_llprior, curr_alpha, curr_rr, curr_alpha*curr_rnots)
     }
 
   }

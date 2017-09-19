@@ -80,7 +80,7 @@ save_plot("ms_figs/f1_priorr0_import.png", fig1, base_height = 5, base_aspect_ra
 ###############################
 ## Conceptual figure 2
 ###############################
-load("data_produced/fig1_data.rda")
+load("data_produced/fig2_data.rda")
 
 ## Prior/posterior densities
 fake_alpha_dat %>% filter(intros %in% c(0, 15)) %>%
@@ -133,13 +133,13 @@ save_plot(filename = "ms_figs/f2_scaling_example.png", plot = combined_example_f
 ## Figure 3 - Posterior R0s for each month
 ###########################################
 
-get_posterior_rnot_data <- function(temperature, include_trans, reporting_rate){
+get_posterior_rnot_data <- function(temperature, include_trans){
   ## temperature = "actual" or "historic" - specifies if actualy 2016/17 temps were used or historic ones
   ## include_trans = c(NA, 1, 5) - specifies how many secondary transmission cases should be used in November Cameron county
   ## reporting_rate = c(0.01, 0.0282, 0.0574, 0.0866, 0.1, 0.2) - assumed reporting rate of 0.0574 for most results in paper
   all_post_files <- list.files(path = "data_produced/posterior_estimates", pattern = "county_posterior_rnots*")
   path <- paste0("county_posterior_rnots_", temperature, "_",
-                 ifelse(is.na(include_trans), 0, include_trans), "_", reporting_rate,".rda")
+                 ifelse(is.na(include_trans), 0, include_trans),".rda")
   if(!path %in% all_post_files){
     stop("Either your path is incorrect, your parameters are incorrect, or you haven't run the posterior estimation for the parameter combination.")
   }
@@ -164,13 +164,13 @@ plot_monthly_post_rnots <- function(posterior_rnots, quant = 0.5){
     mutate(month = factor(month, levels=month.abb)) %>%
     ggplot(aes(x=long, y=lat, fill = r0, group = subregion)) + facet_wrap(~month)+
     geom_polygon(color = "gray", size=0.1) +
-    theme_nothing()
+    theme_void(base_size = 14)
 
   rnot_plot <- add_map_scale(rnot_plot, max_rnot = max(est_r0$r0, na.rm=T))
   rnot_plot
 }
 
-f3_data <- get_posterior_rnot_data("actual", 1, 0.0574)
+f3_data <- get_posterior_rnot_data("actual", 1)
 f3_posterior_maps <- plot_monthly_post_rnots(f3_data, 0.5)
 f3_posterior_maps
 
@@ -207,14 +207,14 @@ c_trans <- function(a, b, breaks = b$breaks, format = b$format) {
 
 rev_date <- c_trans("reverse", "date")
 
-tx_temps <- read_csv("data/tx_historic_temps.csv")
+tx_temps <- read_csv("data/tx_actual_temps.csv")
 tx_temps <- tx_temps %>% mutate(month = factor(month, levels = month.abb)) %>%
+  filter(year==2016) %>%
   group_by(month) %>%
   summarise(avg_temp = mean(avg_temp))
-tx_temps
 
 month_dates <- seq(ymd("2016-01-01"),ymd("2017-03-01"), "month")
-load("data_produced/posterior_estimates/alpha_mcmc_rnot_dist_1_0.0574.rda")
+load("data_produced/posterior_estimates/alpha_mcmc_rnot_actual_1_0.0574.rda")
 est_alphas_df %>% gather(date, alpha_samp, 1:ncol(est_alphas_df)) %>%
   mutate(date = ymd(date),
          month = month(date, label = TRUE)) %>%
