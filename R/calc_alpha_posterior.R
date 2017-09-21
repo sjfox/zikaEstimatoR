@@ -33,7 +33,7 @@ sapply(c("R/fitting_fxns.R", "R/mcmc_sampling.R"), source)
 # include_trans = 1; reporting_rate = 0.0574; temperature = "actual"
 
 ## Get the parameter lists as specified by parm arguments
-daily_parms <- get_mcmc_parm_list(include_trans, reporting_rate, temperature)
+daily_parms <- get_mcmc_parm_list(include_trans, temperature, last_only=FALSE)
 # load("data_produced/dispersion_df.rda") # No longer needed
 
 ##########################################################
@@ -43,6 +43,7 @@ daily_parms <- get_mcmc_parm_list(include_trans, reporting_rate, temperature)
 est_alphas <- purrr::map(daily_parms, mcmc_zika_rnot,
                          alpha_tuning = .1,
                          rnot_tuning = .1,
+			 rr_tuning = .1,
                          burnin = 100000,
                          N = 200000,
                          thin=10)
@@ -53,8 +54,7 @@ colnames(est_alphas_df) <- daily_parms %>% purrr::map(~.$date) %>% do.call("c", 
 
 save(est_alphas_df, file = file.path("..","workfolder","data","ZikaEstimatoR_data",
                                      paste0("alpha_mcmc_rnot_", temperature, "_",
-                                     ifelse(is.na(include_trans), 0, include_trans), "_",
-                                     reporting_rate,".rda")))
+                                     ifelse(is.na(include_trans), 0, include_trans), ".rda")))
 
 
 

@@ -13,10 +13,10 @@
 # 
 #------------------Scheduler Options--------------------
 #SBATCH -J run_alpha_like          # Job name
-#SBATCH -N 1                    # Total number of nodes (16 cores/node)
-#SBATCH -n 8                  # Total number of tasks
+#SBATCH -N 1                    # Total number of nodes (24 cores/node)
+#SBATCH -n 15                  # Total number of tasks
 #SBATCH -p normal          # Queue name
-#SBATCH -o out_branches.o%j      # Name of stdout output file (%j expands to jobid)
+#SBATCH -o est_alphas.o%j      # Name of stdout output file (%j expands to jobid)
 #SBATCH -t 1:00:00            # Run time (hh:mm:ss)
 #SBATCH --mail-user=spncrfx@gmail.com
 #SBATCH --mail-type=all  # email me all messages
@@ -36,7 +36,7 @@
 
 #------------------General Options---------------------
 module load launcher/2.0
-export TACC_LAUNCHER_PPN=16
+export TACC_LAUNCHER_PPN=24
 export EXECUTABLE=$TACC_LAUNCHER_DIR/init_launcher
 export WORKDIR=.
 export CONTROL_FILE=alpha_like_runs.txt
