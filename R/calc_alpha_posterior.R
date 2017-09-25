@@ -52,7 +52,7 @@ est_alphas <- est_alphas %>% transpose()
 est_alphas_df <- est_alphas[[1]] %>% purrr::map(as_data_frame) %>% purrr::map(function(x) select(x, 2)) %>% bind_cols()
 colnames(est_alphas_df) <- daily_parms %>% purrr::map(~.$date) %>% do.call("c", .)
 
-save(est_alphas_df, file = file.path("..","workfolder","data","ZikaEstimatoR_data",
+save(est_alphas_df, file = file.path("..","workfolder","data","ZikaEstimatoR_data", "est_rr_post",
                                      paste0("alpha_daily_mcmc_", temperature, "_",
                                      ifelse(is.na(include_trans), 0, include_trans),
                                      ifelse(extra_imports==0, "_false", "_true"),
