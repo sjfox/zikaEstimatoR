@@ -20,10 +20,11 @@ fit_dispersion <- function(dispersion){
 }
 
 fit_disp_param <- optimise(fit_dispersion, interval = c(0.0,5))
+fit_disp_param
 # Fit Dispersion parameter = 0.1202162
 
 ## Check it and looks good!
-n = 10000
+n = 100000
 R0 = seq(0, 5, length.out=100)
 
 p20.est = numeric(length(R0))
@@ -37,10 +38,17 @@ for (i in 1:length(R0)) {
   p20.nb[i] = sum(rnbinom(n, mu=R0[i], size=fit_disp_param$minimum) > 20)/n
 }
 
-plot(R0, p20.nb)
-lines(R0, p20.est)
+
 
 library(cowplot)
+data_frame(R0, Assumed = p20.nb, Exact = p20.est) %>%
+  ggplot(aes(R0, Exact)) +
+  geom_line() +
+  geom_point(aes(y=Assumed), size=0.5) +
+  labs(x = expression("R"[0]), y = "Probability of > 20 secondary cases") -> sf1_assumed_disp_plot
+
+save_plot(filename = "ms_figs/sfigs/sf1_assumed_disp_plot.png", plot = sf1_assumed_disp_plot, base_height = 4, base_aspect_ratio = 1.1)
+
 
 
 #

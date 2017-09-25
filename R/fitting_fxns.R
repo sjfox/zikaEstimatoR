@@ -57,7 +57,6 @@ get_alpha_parms_r0_dist_mcmc <- function(tx_data, curr_date, county_r0_dists){
 get_mcmc_parm_list <- function(include_trans,  temperature, last_only=FALSE, extra_imports = FALSE){
   ## Function gives the full parm list for running mcmc on every single date of importation
   ## Can call this function with specified parms, and get a list with elements ready-to-go for mcmc
-  # browser()
   tx_imports <- read_csv("data/Zika Disease Cases by Notification Date as of 030617.csv")
   tx_imports <- tx_imports %>% mutate(notification_date = mdy(`First Notification Date`)) %>%
     arrange(notification_date)%>%
@@ -65,10 +64,15 @@ get_mcmc_parm_list <- function(include_trans,  temperature, last_only=FALSE, ext
            county = tolower(str_replace_all(County, " County", ""))) %>%
     select(county, notification_date, month)
 
+  if(extra_imports){
+    ## If extra imports scenario, assume you've only seen 0.0574 % of imports, so replicate each row 17 times
+    tx_imports <- tx_imports[rep(1:nrow(tx_imports), round(1/.0574)),]
+  }
+
   tx_imports$sec_trans <- 0
   include_trans <- as.numeric(include_trans)
   if(!is.na(include_trans)){
-    tx_imports$sec_trans[which(tx_imports$notification_date== "2016-11-21" & tx_imports$county == "cameron")] <- include_trans
+    tx_imports$sec_trans[which(tx_imports$notification_date== "2016-11-21" & tx_imports$county == "cameron")[1]] <- include_trans
     tx_imports$sec_trans[which(tx_imports$notification_date== "2016-12-12" & tx_imports$county == "cameron")[1]] <- 1
   }
 
