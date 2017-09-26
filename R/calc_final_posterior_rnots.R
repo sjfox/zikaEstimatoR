@@ -27,11 +27,6 @@ include_trans <- c(NA, "1", "5")
 temperature <- c("historic", "actual")
 extra_import <- c(TRUE, FALSE)
 
-# include_trans = "1"
-# temperature = "actual"
-# extra_import = TRUE
-# trans_ind <- temp_ind <- 1
-
 for(trans_ind in seq_along(include_trans)){
   for(temp_ind in seq_along(temperature)){
     for(imp_ind in seq_along(extra_import)){
@@ -96,6 +91,27 @@ for(trans_ind in seq_along(include_trans)){
 }
 
 
+# #####################################################
+# ## Debugging the posterior sampling
+#
+# include_trans = "1" ; temperature = "actual"; extra_import = TRUE
+# imp_ind <- trans_ind <- temp_ind <- 1
+#
+# daily_parms <- get_mcmc_parm_list(include_trans[trans_ind], temperature[temp_ind], last_only=TRUE, extra_imports = extra_import[imp_ind])
+#
+# ## Get posterior distribution -- only returns posterior for county/months that had importations
+# set.seed(6)
+# posterior <- purrr::map(daily_parms, mcmc_zika_rnot,
+#                         alpha_tuning = .1,
+#                         rnot_tuning = .1,
+#                         rr_tuning = .1,
+#                         burnin = 100000,
+#                         N = 200000,
+#                         thin=10)
+#
+# quantile(posterior[[1]]$samples[,2], probs=c(0.0275,0.5,0.975))
+# plot(posterior[[1]]$samples[,2], type = "l")
+# plot(posterior[[1]]$samples[,3], type = "l")
 
 #####################################################
 ## Generate posterior if using 2016 cameron temperatures -- doesn't really make sense anymore

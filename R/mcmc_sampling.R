@@ -11,8 +11,8 @@ draw_zika_rnots <- function(gamma_parms){
 
 
 lprior <- function(alpha, parms){
-  sum(dgamma(parms$rnot, shape = parms$rnot_dist$shape, rate = parms$rnot_dist$rate, log = T)) +
-    dnorm(x = parms$reporting_rate, mean = 0.0574, sd = 0.0146, log = T)
+  sum(dgamma(parms$rnot, shape = parms$rnot_dist$shape, rate = parms$rnot_dist$rate, log = T)) #+
+    #dnorm(x = parms$reporting_rate, mean = 0.0574, sd = 0.0146, log = T)
 }
 
 llprior <- function(alpha, parms){
@@ -29,7 +29,12 @@ draw_new_alpha <- function(alpha, tuning){
   # plogis(qlogis(alpha) + rnorm(1, sd = tuning))
 }
 draw_new_reporting_rate <- function(rr, tuning){
-  plogis(qlogis(rr) + rnorm(1, sd = tuning))
+  # plogis(qlogis(rr) + rnorm(1, sd = tuning))
+  reporting <- rnorm(n = 1, mean = 0.0574, sd = 0.0146)
+  while(reporting<0){
+    reporting <- rnorm(n = 1, mean = 0.0574, sd = 0.0146)
+  }
+  reporting
 }
 
 draw_new_rnots <- function(rnots, tuning){

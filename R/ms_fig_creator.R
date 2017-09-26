@@ -82,8 +82,6 @@ save_plot("ms_figs/f1_priorr0_import.png", fig1, base_height = 5, base_aspect_ra
 ###############################
 load("data_produced/fig2_data.rda")
 
-
-
 ## Prior/posterior densities
 updated_rnot_plot <- fake_alpha_dat %>% filter(intros %in% c(0, 15)) %>%
   filter(month_scaled=="Aug") %>%
@@ -217,9 +215,33 @@ tx_temps <- tx_temps %>% mutate(month = factor(month, levels = month.abb)) %>%
   summarise(avg_temp = mean(avg_temp))
 
 month_dates <- seq(ymd("2016-01-01"),ymd("2017-03-01"), "month")
-load("data_produced/posterior_estimates/alpha_mcmc_rnot_actual_1.rda")
+load("data_produced/posterior_estimates/alpha_daily_mcmc_actual_1_true.rda")
 
-est_alphas_df
+est_alphas_df %>% gather(date, alpha_samp, 1:ncol(est_alphas_df)) %>%
+  mutate(date = ymd(date),
+         month = month(date, label = TRUE)) %>%
+  group_by(date) %>%
+  summarize(med_alpha = quantile(alpha_samp, probs = 0.5),
+            low_alpha = quantile(alpha_samp, probs = 0.0275),
+            high_alpha = quantile(alpha_samp, probs = 0.975)) -> test3
+
+est_alphas_df %>% gather(date, alpha_samp, 1:ncol(est_alphas_df)) %>%
+  mutate(date = ymd(date),
+         month = month(date, label = TRUE)) %>%
+  filter(date=="2016-10-13") -> test2
+
+test2 %>%
+  mutate(xs = seq_along(alpha_samp)) %>%
+  ggplot(aes(x=xs, y=alpha_samp)) + geom_line()
+
+  group_by(date) %>%
+  summarize(med_alpha = quantile(alpha_samp, probs = 0.5),
+            low_alpha = quantile(alpha_samp, probs = 0.0275),
+            high_alpha = quantile(alpha_samp, probs = 0.975)) %>%
+  ggplot(aes(date, med_alpha)) + geom_point() +
+  geom_errorbar(aes(ymin = low_alpha, ymax = high_alpha))
+
+
 est_alphas_df %>% gather(date, alpha_samp, 1:ncol(est_alphas_df)) %>%
   mutate(date = ymd(date),
          month = month(date, label = TRUE)) %>%
@@ -245,64 +267,83 @@ save_plot("ms_figs/f4_alpha_ridge.png", plot = alpha_ridge, base_height = 8, bas
 #
 # save_plot("ms_figs/f4_alpha_notridge.png", plot = alpha_plot, base_height = 4, base_aspect_ratio = 1.8)
 
-########################################
-## Figure 5 - validation step and expected number of secondary cases
-########################################
-load("data_produced/posterior_prob_sec_trans.rda")
-prob_detect <- prob_sec %>%
-  filter(year==2016) %>%
-  ggplot(aes(month_num, mean_prob*0.0574, group = county)) +
-  geom_line(alpha=0.5) +
-  scale_x_continuous(breaks = 1:12, labels = month.abb) +
-  scale_y_continuous(expand = c(0,0))+
-  labs(y = "Probability Detect Secondary Case", x = "")
-prob_detect
+###########################################################
+## Supplementary Figures
+###########################################################
+tx_outline <- map_data(map="state") %>% filter(region=="texas")
 
-load("data_produced/exp_detected_cases.rda")
-text_replace <- c("All Importations Reported", "Only Fraction Reported")
-exp_detected_cases %>%
-  mutate(estimate = if_else(estimate=="Low", text_replace[1], text_replace[2])) -> exp_detected_cases
+###########################################################
+## Supp Fig 1 - comparing predicted vs assumed dispersion stuff
+###########################################################
+load("data_produced/rnot_disp_estimates.rda")
+rnot_disp_estimates %>%
+  ggplot(aes(R0, Exact)) +
+  geom_line() +
+  geom_point(aes(y=Assumed), size=0.5) +
+  labs(x = expression("R"[0]), y = "Probability of > 20 secondary cases") -> sf1_assumed_disp_plot
 
-detected_case_plot <- exp_detected_cases %>%
-  ggplot(aes(det_cases)) +
-  geom_histogram(data = filter(exp_detected_cases, estimate==text_replace[1]), aes(y=..density..), binwidth=1, fill="black") +
-  geom_histogram(data = filter(exp_detected_cases, estimate==text_replace[2]), aes(y=..density..),binwidth=10, fill="black") +
-  facet_wrap(~estimate, nrow=2, scales = "free_y") +
-  theme(strip.background = element_blank(), strip.text = element_text(size=16)) +
-  coord_cartesian(expand=FALSE, xlim=c(0,210)) +
-  panel_border(colour = "black") +
-  labs(y="", x = "Expected detected autochthonous cases")
-detected_case_plot
+save_plot(filename = "ms_figs/sfigs/sf1_assumed_disp_plot.png", plot = sf1_assumed_disp_plot, base_height = 4, base_aspect_ratio = 1.1)
 
-f5_exp_sec_cases <- plot_grid(prob_detect, detected_case_plot, nrow = 1, labels = "AUTO")
+###########################################################
+## Supp Fig 2 - Compare Prior median and upperbound estimates for State
+###########################################################
+load("data_produced/county_r0_actual_dists.rda")
 
-save_plot("ms_figs/f5_exp_sec_cases.png", f5_exp_sec_cases, base_height = 5, base_aspect_ratio = 2.2)
-
+med_ub_prior_rnots <- county_r0_actual_dists %>% filter(year == 2016) %>%
+  gather(samp, value, -county, -year, -month) %>%
+  group_by(county, month, year) %>%
+  summarise(med_r0 = quantile(x = value, probs=0.5, na.rm=T),
+            ub_r0 = quantile(x = value, probs=0.975, na.rm=T)) %>%
+  gather(rnot_level, value, med_r0:ub_r0) %>%
+  ungroup() %>%
+  mutate(month = factor(month, levels=month.abb),
+         rnot_level = factor(if_else(rnot_level == "med_r0", "Median", "97.5%"), levels = c("Median", "97.5%")))
 
 
-
-###############################
-## Prior monthly R0 for state -- supplemental
-###############################
-load("data_produced/calculated_tx_county_rnots.rda")
-rnot_by_month <- map_data(map = "county") %>% filter(region=="texas") %>%
+map_data(map = "county") %>% filter(region=="texas") %>%
   mutate(subregion = if_else(subregion=="de witt", "dewitt", subregion)) %>%
-  left_join(tx_county_rnots, by=c("subregion" = "county")) %>%
-  gather(rnot_level, rnots, med_r0, high_r0) %>%
-  mutate(rnot_level = factor(if_else(rnot_level == "med_r0", "Median", "97.5%"), levels = c("Median", "97.5%"))) %>%
-  ggplot(aes(x=long, y=lat, fill = rnots, group = subregion)) +
+  left_join(med_ub_prior_rnots, by=c("subregion" = "county"))  %>%
+  ggplot(aes(x=long, y=lat, fill = value, group = subregion)) +
   facet_wrap(~month+rnot_level, labeller = label_wrap_gen(multi_line=FALSE), ncol = 6)+
   geom_polygon(color = "gray", size=0.1) +
-  scale_fill_gradientn(name = expression("R"[0]), na.value = "white",
-                       colours = c("white", "blue", "yellow", "red"),
-                       # breaks= c(0.1, 1, 10),
-                       values = scales::rescale(c(0, 1, 1.000001, max(tx_county_rnots %>% select(high_r0)))),
-                       guide = guide_colorbar(title=expression("R"[0]), barheight=10)) +
-  theme_nothing()
-rnot_by_month
+  theme_void(base_size=14) -> sf2_med_ub_prior_rnot
 
-save_plot("ms_figs/sf1_med_and_ub_rnot_prior.png", plot = rnot_by_month, base_height = 7, base_aspect_ratio = 1.3)
+sf2_med_ub_prior_rnot <- add_map_scale(sf2_med_ub_prior_rnot, max_rnot = max(med_ub_prior_rnots$value, na.rm=T))
+sf2_med_ub_prior_rnot
+save_plot("ms_figs/sfigs/sf2_med_ub_prior_rnot.png", plot = sf2_med_ub_prior_rnot, base_height = 7, base_aspect_ratio = 1.3)
 
+
+
+
+###########################################################
+## Supp Fig 3 - comparing the prior R0 estimates for the historic/actual temperature estimated R0s
+###########################################################
+load("data_produced/tx_county_historic_summary_rnots.rda")
+load("data_produced/tx_county_actual_summary_rnots.rda")
+
+## Get historic rnot data and join it with the actual temperature rnot data
+historic_prior_rnots <- tx_historic_county_rnots %>% mutate(hist_rnot = med_r0) %>%
+  select(month, county, hist_rnot)
+
+tx_actual_county_rnots %>% mutate(act_rnot = med_r0) %>%
+  filter(year == 2016) %>%
+  select(month, county, act_rnot) %>%
+  left_join(historic_prior_rnots, by = c("month", "county")) %>%
+  filter(act_rnot >=0.001, hist_rnot >= 0.001) %>%
+  ggplot(aes(hist_rnot, act_rnot, color = month)) +
+    geom_point() +
+    geom_abline(intercept = 0, slope=1, lty=2) +
+    scale_x_log10(limits = c(0.001, 2)) +
+    scale_y_log10(limits = c(0.001, 2)) +
+    labs(x = expression("R"[0]~"Estimate - Historic Temperature"), y = expression("R"[0]~" Estimate - 2016 Temperature"), color = "") +
+    scale_color_manual(values = rev(c("#023FA5", "#485CA8", "#6A76B2", "#878FBD", "#A1A6C8", "#B7BBD1", "#CBCDD9", "#DADBDF", "#E2E2E2"))) +
+    theme(legend.position = c(0.8, 0.3)) -> sf3_prior_r0_comparison
+save_plot(filename = "ms_figs/sfigs/sf3_prior_r0_comparison.png", plot = sf3_prior_r0_comparison, base_height = 5, base_aspect_ratio = 1)
+
+
+
+#########################################################################################################################
+## Haven't updated anything below here
 
 ##################################################################
 ## Final R0 estimates for the states plot by month -- Median + ub
@@ -447,6 +488,39 @@ save_plot("ms_figs/sf5_daily_alpha_show_reporting.png", alpha_plot_show_reportin
 ############################################################################
 ## NOT USED ANYMORE
 ############################################################################
+# ########################################
+# ## Figure 5 - validation step and expected number of secondary cases
+# ########################################
+# load("data_produced/posterior_prob_sec_trans.rda")
+# prob_detect <- prob_sec %>%
+#   filter(year==2016) %>%
+#   ggplot(aes(month_num, mean_prob*0.0574, group = county)) +
+#   geom_line(alpha=0.5) +
+#   scale_x_continuous(breaks = 1:12, labels = month.abb) +
+#   scale_y_continuous(expand = c(0,0))+
+#   labs(y = "Probability Detect Secondary Case", x = "")
+# prob_detect
+#
+# load("data_produced/exp_detected_cases.rda")
+# text_replace <- c("All Importations Reported", "Only Fraction Reported")
+# exp_detected_cases %>%
+#   mutate(estimate = if_else(estimate=="Low", text_replace[1], text_replace[2])) -> exp_detected_cases
+#
+# detected_case_plot <- exp_detected_cases %>%
+#   ggplot(aes(det_cases)) +
+#   geom_histogram(data = filter(exp_detected_cases, estimate==text_replace[1]), aes(y=..density..), binwidth=1, fill="black") +
+#   geom_histogram(data = filter(exp_detected_cases, estimate==text_replace[2]), aes(y=..density..),binwidth=10, fill="black") +
+#   facet_wrap(~estimate, nrow=2, scales = "free_y") +
+#   theme(strip.background = element_blank(), strip.text = element_text(size=16)) +
+#   coord_cartesian(expand=FALSE, xlim=c(0,210)) +
+#   panel_border(colour = "black") +
+#   labs(y="", x = "Expected detected autochthonous cases")
+# detected_case_plot
+#
+# f5_exp_sec_cases <- plot_grid(prob_detect, detected_case_plot, nrow = 1, labels = "AUTO")
+#
+# save_plot("ms_figs/f5_exp_sec_cases.png", f5_exp_sec_cases, base_height = 5, base_aspect_ratio = 2.2)
+
 ############################
 # Next fig should show the Cameron county R0 distribution
 # Need to take scaling function and just give raw scaled results isntead of summaries

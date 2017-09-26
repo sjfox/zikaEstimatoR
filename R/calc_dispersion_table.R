@@ -39,16 +39,9 @@ for (i in 1:length(R0)) {
 }
 
 
+rnot_disp_estimates <- data_frame(R0, Assumed = p20.nb, Exact = p20.est)
 
-library(cowplot)
-data_frame(R0, Assumed = p20.nb, Exact = p20.est) %>%
-  ggplot(aes(R0, Exact)) +
-  geom_line() +
-  geom_point(aes(y=Assumed), size=0.5) +
-  labs(x = expression("R"[0]), y = "Probability of > 20 secondary cases") -> sf1_assumed_disp_plot
-
-save_plot(filename = "ms_figs/sfigs/sf1_assumed_disp_plot.png", plot = sf1_assumed_disp_plot, base_height = 4, base_aspect_ratio = 1.1)
-
+save(file = "data_produced/rnot_disp_estimates.rda", rnot_disp_estimates)
 
 
 #
