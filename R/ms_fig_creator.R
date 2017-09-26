@@ -215,31 +215,8 @@ tx_temps <- tx_temps %>% mutate(month = factor(month, levels = month.abb)) %>%
   summarise(avg_temp = mean(avg_temp))
 
 month_dates <- seq(ymd("2016-01-01"),ymd("2017-03-01"), "month")
-load("data_produced/posterior_estimates/alpha_daily_mcmc_actual_1_true.rda")
 
-est_alphas_df %>% gather(date, alpha_samp, 1:ncol(est_alphas_df)) %>%
-  mutate(date = ymd(date),
-         month = month(date, label = TRUE)) %>%
-  group_by(date) %>%
-  summarize(med_alpha = quantile(alpha_samp, probs = 0.5),
-            low_alpha = quantile(alpha_samp, probs = 0.0275),
-            high_alpha = quantile(alpha_samp, probs = 0.975)) -> test3
-
-est_alphas_df %>% gather(date, alpha_samp, 1:ncol(est_alphas_df)) %>%
-  mutate(date = ymd(date),
-         month = month(date, label = TRUE)) %>%
-  filter(date=="2016-10-13") -> test2
-
-test2 %>%
-  mutate(xs = seq_along(alpha_samp)) %>%
-  ggplot(aes(x=xs, y=alpha_samp)) + geom_line()
-
-  group_by(date) %>%
-  summarize(med_alpha = quantile(alpha_samp, probs = 0.5),
-            low_alpha = quantile(alpha_samp, probs = 0.0275),
-            high_alpha = quantile(alpha_samp, probs = 0.975)) %>%
-  ggplot(aes(date, med_alpha)) + geom_point() +
-  geom_errorbar(aes(ymin = low_alpha, ymax = high_alpha))
+load("data_produced/posterior_estimates/alpha_daily_mcmc_actual_NA_true.rda")
 
 
 est_alphas_df %>% gather(date, alpha_samp, 1:ncol(est_alphas_df)) %>%

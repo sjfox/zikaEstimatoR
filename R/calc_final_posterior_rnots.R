@@ -83,9 +83,17 @@ for(trans_ind in seq_along(include_trans)){
       est_posterior <- est_posterior %>% gather(county, rnot_samp, 3:ncol(est_posterior)) %>%
         separate(col = county, c("county", "month", "year"), sep="_")
 
-      save(est_posterior, file = paste0("data_produced/posterior_estimates/county_posterior_rnots_", temperature[temp_ind], "_",
-                                        ifelse(is.na(include_trans[trans_ind]), 0, include_trans[trans_ind]),"_",
-                                        ifelse(extra_import[imp_ind], "true", "false"), ".rda"))
+
+      if(grepl('spencerfox', Sys.info()['login'])) setwd(file.path("~", "projects", base_url)){
+        save(est_posterior, file = paste0("data_produced/posterior_estimates/county_posterior_rnots_", temperature[temp_ind], "_",
+                                          ifelse(is.na(include_trans[trans_ind]), 0, include_trans[trans_ind]),"_",
+                                          ifelse(extra_import[imp_ind], "true", "false"), ".rda"))
+      } else if(grepl('wrangler', Sys.info()['nodename'])){
+        save(est_posterior, file = file.path("..","workfolder","data","ZikaEstimatoR_data", "post_rnot_est",
+                                             paste0("county_posterior_rnots_", temperature[temp_ind], "_",
+                                                    ifelse(is.na(include_trans[trans_ind]), 0, include_trans[trans_ind]),"_",
+                                                    ifelse(extra_import[imp_ind], "true", "false"), ".rda")))
+      }
     }
   }
 }
