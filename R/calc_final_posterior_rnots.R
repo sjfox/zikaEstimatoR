@@ -84,7 +84,7 @@ for(trans_ind in seq_along(include_trans)){
         separate(col = county, c("county", "month", "year"), sep="_")
 
 
-      if(grepl('spencerfox', Sys.info()['login'])) setwd(file.path("~", "projects", base_url)){
+      if(grepl('spencerfox', Sys.info()['login'])) {
         save(est_posterior, file = paste0("data_produced/posterior_estimates/county_posterior_rnots_", temperature[temp_ind], "_",
                                           ifelse(is.na(include_trans[trans_ind]), 0, include_trans[trans_ind]),"_",
                                           ifelse(extra_import[imp_ind], "true", "false"), ".rda"))
