@@ -33,6 +33,21 @@ NumericVector find_rnot_ods(NumericVector rnot){
   return(ods);
 }
 
+// [[Rcpp::export]]
+double offspring_size_llike(double sec_trans, double ods, double rnots){
+  // Takes in likelihood parms, and calculates the likelihood to see an outbreak of size sec_trans
+  // issue is that sec_trans is defined as being 0 if outbreak is size 1, so now adding 1 to clear up
+  sec_trans = sec_trans + 1;
+  double log_like = exp(R::lgammafn( ods * sec_trans + sec_trans - 1) -
+                      R::lgammafn( ods * sec_trans) -
+                      R::lgammafn(sec_trans + 1) +
+                      (sec_trans - 1) * log( rnots / ods) -
+                      (ods * sec_trans+sec_trans - 1) * log(1 + rnots/ods));
+  return(log_like);
+}
+
+
+
 // Old dispersion parameter finding algorithm. Not needed because no longer have the table for searching
 // // [[Rcpp::export]]
 // NumericVector find_rnot_ods(NumericVector rnot, DataFrame disp_df){
@@ -70,7 +85,8 @@ NumericVector intro_loglike(List parms) {
   } else if(dist =="nbinom"){
     for(int i =0; i < log_likes.size(); i++){
       // std::cout << rnots[i] << std::endl;
-      log_likes[i] = R::dnbinom_mu(sec_trans[i], ods[i], rnots[i], true) * num_intros[i];
+      //log_likes[i] = R::dnbinom_mu(sec_trans[i], ods[i], rnots[i], true) * num_intros[i];
+      log_likes[i] = offspring_size_llike(sec_trans[i], ods[i], rnots[i]) * num_intros[i];
     }
   } else{
     Rcpp::stop("Inadmissible distribution value");

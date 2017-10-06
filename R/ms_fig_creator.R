@@ -219,7 +219,7 @@ alpha_plot_fxn <- function(alpha_data){
 
   month_dates <- seq(ymd("2016-01-01"),ymd("2017-03-01"), "month")
 
-  alpha_data %>% gather(date, alpha_samp, 1:ncol(est_alphas_df)) %>%
+  alpha_data %>% gather(date, alpha_samp, 1:ncol(alpha_data)) %>%
     mutate(date = ymd(date),
            month = month(date, label = TRUE)) %>%
     mutate(days_since = as.numeric(date - min(date))) %>%
@@ -240,8 +240,7 @@ alpha_f4_data <- get_posterior_data("actual", 1, FALSE, alpha=TRUE)
 
 f4_alpha_ridge <- alpha_plot_fxn(alpha_f4_data) +
     annotate("point", y = ymd("2016-08-01"), x = 0.045, fill = "#5869B1", color = "#5869B1", shape=25, size=5) +
-    annotate("point", y = ymd("2016-10-10"), x = 0.11, fill = "#5869B1", color = "#5869B1", shape=25, size=5)-> alpha_ridge
-f4_alpha_ridge
+    annotate("point", y = ymd("2016-10-10"), x = 0.11, fill = "#5869B1", color = "#5869B1", shape=25, size=5)
 
 save_plot("ms_figs/f4_alpha_ridge.png", plot = f4_alpha_ridge, base_height = 8, base_aspect_ratio = 1)
 #
@@ -253,13 +252,41 @@ save_plot("ms_figs/f4_alpha_ridge.png", plot = f4_alpha_ridge, base_height = 8, 
 ##########################################
 ## Figure 5
 ##########################################
-load("data_produced/all_expected_cases.rda")
-all_expected_cases  %>%
-  mutate(total_expected_cases = as.factor(total_expected_cases)) %>%
-  ggplot(aes(total_expected_cases)) +
-  facet_wrap(~extra_import, nrow=2, scales="free_y") +
-  geom_histogram(stat="count")
+f5_data <- get_posterior_data("actual", 1, FALSE)
 
+f5_data %>% filter(year == 2016) %>%
+  mutate(prob_det = 0.0574*(1 - dnbinom(0, mu = rnot_samp, size = 0.12))) %>%
+  group_by(county, month) %>%
+  summarize(prob_det = mean(prob_det, na.rm=T)) %>%
+  mutate(month_num = match(month,month.abb)) -> f5_sum_data
+
+f5_prob_case <- f5_sum_data %>% ggplot(aes(month_num, prob_det, group = county)) +
+    geom_line(alpha=0.5) +
+    scale_x_continuous(breaks = 1:12, labels = month.abb) +
+    scale_y_continuous(expand = c(0,0))+
+    labs(y = "Probability Detect Secondary Case", x = "")
+
+
+load("data_produced/all_expected_cases.rda")
+f5_exp_case <- all_expected_cases  %>%
+  mutate(total_expected_cases = as.factor(total_expected_cases),
+         extra_import = if_else(extra_import, "Increased Importations", "Reported Importations"),
+         extra_import = factor(extra_import, levels = c("Reported Importations", "Increased Importations"))) %>%
+  group_by(extra_import, total_expected_cases) %>%
+  summarize(total_exp_case_dens = n()/10000) %>%
+  ggplot(aes(x = total_expected_cases, y = total_exp_case_dens)) +
+    facet_wrap(~extra_import, nrow=2) +
+    geom_bar(stat="identity") +
+    theme(strip.background = element_rect(fill=NA, color = "black"))+
+    labs(x = "Expected Number of Cases", y="Probability") +
+    scale_y_continuous(expand=c(0,0), limits=c(0,1)) +
+    panel_border(colour = "black") +
+    geom_vline(xintercept=2, color = "#5869B1", lty=2, size=1)
+f5_exp_case
+
+f5_prob_exp_cases <- plot_grid(f5_prob_case, f5_exp_case, labels="AUTO", rel_widths = c(1.5,1))
+
+save_plot("ms_figs/f5_prob_exp_cases.png", plot = f5_prob_exp_cases, base_height = 4, base_aspect_ratio = 2.3)
 
 ###########################################################
 ## Supplementary Figures

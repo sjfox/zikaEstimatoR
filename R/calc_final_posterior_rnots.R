@@ -27,6 +27,8 @@ include_trans <- c(NA, "1", "5")
 temperature <- c("historic", "actual")
 extra_import <- c(TRUE, FALSE)
 
+# trans_ind <- 2; temp_ind <- 2; imp_ind <- 2
+
 for(trans_ind in seq_along(include_trans)){
   for(temp_ind in seq_along(temperature)){
     for(imp_ind in seq_along(extra_import)){
