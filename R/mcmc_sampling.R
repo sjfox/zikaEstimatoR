@@ -78,6 +78,7 @@ mcmc_zika_rnot <- function (zika_parms,
   }
   ###### Calc log like + log prior
   curr_parms <- subs_parms(list(rnot = curr_rnots, reporting_rate = curr_rr), zika_parms)
+  # browser()
   curr_llprior <- llprior(curr_alpha, curr_parms)
 
   ##### No longer save first results

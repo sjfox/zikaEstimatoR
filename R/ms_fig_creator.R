@@ -185,7 +185,7 @@ plot_monthly_post_rnots <- function(posterior_rnots, quant = 0.5){
   rnot_plot
 }
 
-f3_data <- get_posterior_data("actual", 1, FALSE)
+f3_data <- get_posterior_data("actual", NA, FALSE)
 f3_posterior_maps <- plot_monthly_post_rnots(f3_data, 0.5)
 f3_posterior_maps
 

@@ -38,11 +38,11 @@ double offspring_size_llike(double sec_trans, double ods, double rnots){
   // Takes in likelihood parms, and calculates the likelihood to see an outbreak of size sec_trans
   // issue is that sec_trans is defined as being 0 if outbreak is size 1, so now adding 1 to clear up
   sec_trans = sec_trans + 1;
-  double log_like = exp(R::lgammafn( ods * sec_trans + sec_trans - 1) -
+  double log_like = R::lgammafn( ods * sec_trans + sec_trans - 1) -
                       R::lgammafn( ods * sec_trans) -
                       R::lgammafn(sec_trans + 1) +
                       (sec_trans - 1) * log( rnots / ods) -
-                      (ods * sec_trans+sec_trans - 1) * log(1 + rnots/ods));
+                      (ods * sec_trans+sec_trans - 1) * log(1 + rnots/ods);
   return(log_like);
 }
 
@@ -84,9 +84,10 @@ NumericVector intro_loglike(List parms) {
     }
   } else if(dist =="nbinom"){
     for(int i =0; i < log_likes.size(); i++){
-      // std::cout << rnots[i] << std::endl;
-      //log_likes[i] = R::dnbinom_mu(sec_trans[i], ods[i], rnots[i], true) * num_intros[i];
+
+      // log_likes[i] = R::dnbinom_mu(sec_trans[i], ods[i], rnots[i], true) * num_intros[i];
       log_likes[i] = offspring_size_llike(sec_trans[i], ods[i], rnots[i]) * num_intros[i];
+
     }
   } else{
     Rcpp::stop("Inadmissible distribution value");
@@ -100,12 +101,18 @@ double scaling_loglike_cpp(double alpha, List params){
   List parms = Rcpp::clone(params);
   NumericVector rnots = as<NumericVector>(parms["rnot"]);
   double reporting_rate = as<double>(parms["reporting_rate"]);
+
   if(any(!Rcpp::is_na(rnots))){
+    // This used in mcmc sampling
+
     rnots = rnots * alpha * reporting_rate;
     NumericVector ods = find_rnot_ods(rnots);
     parms = subs_parms(Rcpp::List::create(Rcpp::Named("rnot") = rnots, Rcpp::Named("overdispersion")=ods), parms);
+
     return(Rcpp::sum(intro_loglike(parms)));
   } else{
+    std::cout << "Here2" << std::endl;
+    // This used when sampling from distributions - no longer necessary
     NumericMatrix rnot_dist = internal::convert_using_rfunction(as<DataFrame>(parms["rnot_dist"]), "as.matrix");
     rnot_dist = rnot_dist * alpha * reporting_rate;
     NumericVector rnots = internal::convert_using_rfunction(rnot_dist, "as.numeric");
