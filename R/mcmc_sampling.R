@@ -101,16 +101,16 @@ mcmc_zika_rnot <- function (zika_parms,
     ###### Calc log like
     proposed_parms <- subs_parms(list(rnot = proposed_rnots, reporting_rate = proposed_rr), zika_parms)
     proposed_llprior <- llprior(proposed_alpha, proposed_parms)
-
+    # print(ii)
     mh_prob <- proposed_llprior - curr_llprior
     if(is.na(mh_prob) | is.infinite(mh_prob)) browser()
     if(mh_prob >= 0 | (runif(1) <= exp(mh_prob))){
       curr_alpha <- proposed_alpha
       curr_rnots <- proposed_rnots
-      curr_rr <- proposed_rr
       curr_llprior <- proposed_llprior
       accept <- accept + 1
     }
+    curr_rr <- proposed_rr
 
     if(N > burnin & ii %% thin == 0){
       saved_samps[(ii - burnin)/thin, ] <- c(curr_llprior, curr_alpha, curr_rr, curr_alpha*curr_rnots)

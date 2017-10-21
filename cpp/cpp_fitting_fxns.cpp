@@ -2,15 +2,6 @@
 
 using namespace Rcpp;
 
-// This is a simple example of exporting a C++ function to R. You can
-// source this function into an R session using the Rcpp::sourceCpp
-// function (or via the Source button on the editor toolbar). Learn
-// more about Rcpp at:
-//
-//   http://www.rcpp.org/
-//   http://adv-r.had.co.nz/Rcpp.html
-//   http://gallery.rcpp.org/
-//
 
 // [[Rcpp::export]]
 List subs_parms(List sub_parms, List ref_parms){
@@ -35,17 +26,38 @@ NumericVector find_rnot_ods(NumericVector rnot){
 
 // [[Rcpp::export]]
 double offspring_size_llike(double sec_trans, double ods, double rnots){
-  // Takes in likelihood parms, and calculates the likelihood to see an outbreak of size sec_trans
-  // issue is that sec_trans is defined as being 0 if outbreak is size 1, so now adding 1 to clear up
-  sec_trans = sec_trans + 1;
+  // Takes in likelihood parms, and calculates the likelihood of an outbreak of size sec_trans
+  //exp(lgamma(k*j+j-1)-lgamma(k*j)-lgamma(j+1)+(j-1)*log(R0/k)-(k*j+j-1)*log(1+R0/k))
   double log_like = R::lgammafn( ods * sec_trans + sec_trans - 1) -
                       R::lgammafn( ods * sec_trans) -
                       R::lgammafn(sec_trans + 1) +
-                      (sec_trans - 1) * log( rnots / ods) -
+                      (sec_trans - 1) * log( (rnots / ods)) -
                       (ods * sec_trans+sec_trans - 1) * log(1 + rnots/ods);
+  // Rcout << R::lgammafn(sec_trans + 1) << ", " << sec_trans << std::endl;
   return(log_like);
+
 }
 
+// [[Rcpp::export]]
+double offspring_size_obs_llike(double sec_trans, double ods, double rnots, double reporting_rate){
+  // Takes in likelihood parms, and calculates the likelihood of obsreving an outbreak of size sec_trans
+  // issue is that sec_trans is defined as being 0 if outbreak is size 1, so now adding 1 to clear up
+  // see `sim_test_likelihoood_fxns.R` file for likelihood comparison with simulation results
+  sec_trans = sec_trans + 1;
+  IntegerVector true_outbreak_sizes = seq(sec_trans, 50);
+
+  double total_prob = 0.0;
+  double prob_outbreak_one_size = 0.0;
+  for(int i = 0; i < true_outbreak_sizes.size(); i++){
+    prob_outbreak_one_size = exp(offspring_size_llike(true_outbreak_sizes[i], ods, rnots) + R::dbinom((sec_trans - 1), (true_outbreak_sizes[i] - 1), reporting_rate, true));
+    total_prob += prob_outbreak_one_size;
+    // Rcout << "Probability is" << R::dbinom((sec_trans - 1), (true_outbreak_sizes[i] - 1), reporting_rate, true) << std::endl <<
+      // "Variables are: sec_trans=" << true_outbreak_sizes[i] << " ods=" <<ods<<" rnot=" << rnots << " rr=" << reporting_rate << std::endl;
+  }
+  // Rcout << "Probability is" << total_prob << std::endl <<
+    // "Variables are: sec_trans=" << sec_trans << " ods=" <<ods<<" rnot=" << rnots << " rr=" << reporting_rate << std::endl;
+  return(log(total_prob));
+}
 
 
 // Old dispersion parameter finding algorithm. Not needed because no longer have the table for searching
@@ -77,6 +89,7 @@ NumericVector intro_loglike(List parms) {
   NumericVector ods = Rcpp::as<NumericVector>(parms["overdispersion"]);
   NumericVector num_intros = Rcpp::as<NumericVector>(parms["num_intros"]);
   NumericVector sec_trans = Rcpp::as<NumericVector>(parms["secondary_trans"]);
+  double reporting_rate = as<double>(parms["reporting_rate"]);
   NumericVector log_likes(rnots.size());
   if(dist =="pois"){
     for(int i =0; i < log_likes.size();i++){
@@ -86,7 +99,7 @@ NumericVector intro_loglike(List parms) {
     for(int i =0; i < log_likes.size(); i++){
 
       // log_likes[i] = R::dnbinom_mu(sec_trans[i], ods[i], rnots[i], true) * num_intros[i];
-      log_likes[i] = offspring_size_llike(sec_trans[i], ods[i], rnots[i]) * num_intros[i];
+      log_likes[i] = offspring_size_obs_llike(sec_trans[i], ods[i], rnots[i], reporting_rate) * num_intros[i];
 
     }
   } else{
@@ -105,13 +118,13 @@ double scaling_loglike_cpp(double alpha, List params){
   if(any(!Rcpp::is_na(rnots))){
     // This used in mcmc sampling
 
-    rnots = rnots * alpha * reporting_rate;
+    rnots = rnots * alpha; //* reporting_rate;
     NumericVector ods = find_rnot_ods(rnots);
-    parms = subs_parms(Rcpp::List::create(Rcpp::Named("rnot") = rnots, Rcpp::Named("overdispersion")=ods), parms);
+    parms = subs_parms(Rcpp::List::create(Rcpp::Named("rnot") = rnots,
+                                          Rcpp::Named("overdispersion")=ods), parms);
 
     return(Rcpp::sum(intro_loglike(parms)));
   } else{
-    std::cout << "Here2" << std::endl;
     // This used when sampling from distributions - no longer necessary
     NumericMatrix rnot_dist = internal::convert_using_rfunction(as<DataFrame>(parms["rnot_dist"]), "as.matrix");
     rnot_dist = rnot_dist * alpha * reporting_rate;

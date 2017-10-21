@@ -58,6 +58,7 @@ get_mcmc_parm_list <- function(include_trans,  temperature, last_only=FALSE, ext
   ## Function gives the full parm list for running mcmc on every single date of importation
   ## Can call this function with specified parms, and get a list with elements ready-to-go for mcmc
   tx_imports <- read_csv("data/Zika Disease Cases as of 09282017.csv")
+  # browser()
   tx_imports <- tx_imports %>% mutate(notification_date = mdy(`First Notification Date`)) %>%
     arrange(notification_date)%>%
     mutate(month = as.character(month(notification_date, label=TRUE, abbr = T)),

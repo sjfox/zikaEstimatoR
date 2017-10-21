@@ -18,7 +18,7 @@ tx_imports <- tx_imports %>% mutate(notification_date = mdy(`First Notification 
   summarise(num_imports = n()) %>%
   ungroup() %>%
   mutate(month= factor(month, levels = month.abb)) %>%
-  filter(as.numeric(month) >= 3, year==2017)
+  filter(year==2017)
 
 
 
@@ -84,7 +84,7 @@ for(extra_imports in c(TRUE, FALSE)){
 
 all_expected_cases <- sample_exp_cases %>%
   bind_rows() %>%
-  mutate(index = rep(1:10000, 12)) %>%
+  mutate(index = rep(1:10000, 34)) %>%
   group_by(index, extra_import) %>%
   summarize(total_expected_cases = sum(exp_case_samps)) %>%
   ungroup()

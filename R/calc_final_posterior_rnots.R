@@ -44,6 +44,7 @@ for(trans_ind in seq_along(include_trans)){
                               N = 200000,
                               thin=10)
 
+
       est_posterior <- posterior[[1]]$samples %>% as_data_frame() %>% select(-1)
 
       colnames(est_posterior) <- c("alpha", "reporting_rate", daily_parms[[1]]$county_month_year)
