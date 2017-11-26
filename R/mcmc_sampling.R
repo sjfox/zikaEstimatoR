@@ -25,7 +25,7 @@ llprior <- function(alpha, parms){
 
 
 draw_new_alpha <- function(alpha, tuning){
-  runif(1)
+  runif(1, min = 0, max = 2)
   # plogis(qlogis(alpha) + rnorm(1, sd = tuning))
 }
 draw_new_reporting_rate <- function(rr, tuning){

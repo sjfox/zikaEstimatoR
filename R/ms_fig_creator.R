@@ -13,29 +13,17 @@ library(scales)
 library(ggridges)
 ###################################################################################
 ## Fxn for adding proper color scaling/outline to maps
-tx_outline <- map_data(map="state") %>% filter(region=="texas")
-add_map_scale <- function(gmap, max_rnot, texas = tx_outline){
-  if(max_rnot > 1){
-    gmap <- gmap +
-      scale_fill_gradientn(name = expression("R"[0]), na.value = "white",
-                           colours = c("white", "#264BAC", "#ffeda0", "#8A1923"),
-                           values = scales::rescale(c(0, 1, 1.000001, max_rnot)),
-                           guide = guide_colorbar(title=expression("R"[0]), barheight=10))
-  } else{
-    gmap <- gmap +
-            scale_fill_gradient(low="white", high="#264BAC",
-                          guide = guide_colorbar(title=expression("R"[0]), barheight=10))
-  }
-  gmap <- gmap + geom_polygon(data=texas, aes(x=long, y=lat), fill=NA, size=0.1,color="black", inherit.aes = FALSE)
-  gmap
-}
+source("R/plotting_fxns.R")
+
+## Date of results to be used.
+data_produced_date <- "10-22-2017"
 ###################################################################################
 
 
 ###############################
 ## Raw R0 and importation data Figure 1
 ###############################
-tx_imports <- read_csv("data/Zika Disease Cases by Notification Date as of 030617.csv")
+tx_imports <- read_csv("data/Zika Disease Cases as of 09282017.csv")
 
 import_data <- tx_imports %>% mutate(notification_date = mdy(`First Notification Date`)) %>%
   #filter(notification_date<max_date) %>%
@@ -46,19 +34,24 @@ import_data <- tx_imports %>% mutate(notification_date = mdy(`First Notification
   summarise(num_imports = n()) %>%
   mutate(cum_imports = cumsum(num_imports))
 
-arrow_data <- data_frame(date = ymd(c("2016-11-21", "2016-12-12")),
-                         ystart = c(7,7),
-                         yend = c(3,5))
+arrow_data <- data_frame(date = ymd(c("2016-11-22", "2016-12-12", "2017-04-25")),
+                         ystart = c(7,7,7),
+                         yend = c(3,5, 1))
 
 
 import_plot <- import_data %>%
   ggplot(aes(notification_date, num_imports)) +
+  annotate("rect", xmin=ymd("2016-01-01"), xmax=ymd("2017-01-01"), ymin=0, ymax=Inf, alpha=0.1, fill="black") +
+  annotate("rect", xmin=ymd("2017-01-01"), xmax=as.Date(as.POSIXct(Inf, origin = "2016-01-01")), ymin=0, ymax=Inf, alpha=0.2, fill="green") +
+  annotate("text", x=ymd("2016-02-05"), y=6.6, color = "black", label = "Training", size=6) +
+  annotate("text", x=ymd("2017-01-20"), y=6.6, color = "darkgreen", label = "Test", size=6) +
   geom_bar(stat="identity", width=2) +
   labs(y="Importations", x = NULL) +
   scale_x_date(labels = date_format("%b"), breaks=date_breaks("month"))+
   scale_y_continuous(expand=c(0,0))+
   geom_segment(data = arrow_data, aes(x =date, xend=date,y=ystart, yend=yend),
                arrow = arrow(length = unit(0.3,"cm")), size=1.5, color="#5869B1")
+
 import_plot
 
 load("data_produced/tx_county_actual_summary_rnots.rda")
@@ -124,69 +117,13 @@ combined_example_fig2 <- plot_grid(updated_rnot_plot, update_map_plot, nrow = 1,
 
 save_plot(filename = "ms_figs/f2_scaling_example.png", plot = combined_example_fig2, base_height = 4, base_aspect_ratio = 3)
 
-# fig1 <- ggdraw(combined_fig1) +
-#           draw_plot(plot = secondary_dist_plot, x = .2415, y=.73, width = 0.25, height = 0.21)
-#
-# save_plot(filename = "ms_figs/f1_scaling_example_maps.png", plot = fig1, base_height = 8, base_aspect_ratio = 1.2)
 
 ###########################################
 ## Figure 3 - Posterior R0s for each month
 ###########################################
 
-get_posterior_data <- function(temperature, include_trans, extra_imports, alpha=FALSE){
-  ## temperature = "actual" or "historic" - specifies if actualy 2016/17 temps were used or historic ones
-  ## include_trans = c(NA, 1, 5) - specifies how many secondary transmission cases should be used in November Cameron county
-  ## reporting_rate = c(0.01, 0.0282, 0.0574, 0.0866, 0.1, 0.2) - assumed reporting rate of 0.0574 for most results in paper
-  all_post_files <- list.files(path = "data_produced/posterior_estimates", pattern = "*.rda")
-
-  if(alpha){
-    path <- paste0("alpha_daily_mcmc_", temperature, "_",
-                   ifelse(is.na(include_trans), 0, include_trans),"_",
-                   ifelse(extra_imports, "true", "false"), ".rda")
-  } else {
-    path <- paste0("county_posterior_rnots_", temperature, "_",
-                   ifelse(is.na(include_trans), 0, include_trans),"_",
-                   ifelse(extra_imports, "true", "false"), ".rda")
-  }
-
-  if(!path %in% all_post_files){
-    stop("Either your path is incorrect, your parameters are incorrect, or you haven't run the posterior estimation for the parameter combination.")
-  }
-
-  load(paste0("data_produced/posterior_estimates/", path))
-
-  if(alpha){
-    est_alphas_df
-  } else{
-    est_posterior
-  }
-}
-
-plot_monthly_post_rnots <- function(posterior_rnots, quant = 0.5){
-  ## Plots faceted years worth of maps for posterior R0 estimates
-  ## quants specifies what quantile to plot 0.5 is median
-  est_r0 <- posterior_rnots %>% select(-alpha) %>%
-    group_by(county, month, year) %>%
-    summarise(r0 = quantile(x = rnot_samp, probs=quant, na.rm=T))
-
-  if(length(unique(est_r0$year)) > 1){
-    est_r0 <- est_r0 %>% filter(year==2016)
-  }
-
-  rnot_plot <- map_data(map = "county") %>% filter(region=="texas") %>%
-    mutate(subregion = if_else(subregion=="de witt", "dewitt", subregion)) %>%
-    left_join(est_r0, by=c("subregion" = "county"))  %>%
-    mutate(month = factor(month, levels=month.abb)) %>%
-    ggplot(aes(x=long, y=lat, fill = r0, group = subregion)) + facet_wrap(~month)+
-    geom_polygon(color = "gray", size=0.1) +
-    theme_void(base_size = 14)
-
-  rnot_plot <- add_map_scale(rnot_plot, max_rnot = max(est_r0$r0, na.rm=T))
-  rnot_plot
-}
-
 f3_data <- get_posterior_data("actual", 1, FALSE)
-f3_posterior_maps <- plot_monthly_post_rnots(est_posterior, 0.5)
+f3_posterior_maps <- plot_monthly_post_rnots(f3_data, 0.5)
 f3_posterior_maps
 
 
@@ -196,52 +133,13 @@ save_plot("ms_figs/f3_posterior_maps.png", plot = f3_posterior_maps, base_height
 ###########################################
 ## Figure 4 - Changing Alpha through time
 ###########################################
-c_trans <- function(a, b, breaks = b$breaks, format = b$format) {
-  a <- as.trans(a)
-  b <- as.trans(b)
-
-  name <- paste(a$name, b$name, sep = "-")
-
-  trans <- function(x) a$trans(b$trans(x))
-  inv <- function(x) b$inverse(a$inverse(x))
-
-  trans_new(name, trans, inv, breaks, format)
-}
-
-alpha_plot_fxn <- function(alpha_data){
-  rev_date <- c_trans("reverse", "date")
-
-  tx_temps <- read_csv("data/tx_actual_temps.csv")
-  tx_temps <- tx_temps %>% mutate(month = factor(month, levels = month.abb)) %>%
-    filter(year==2016) %>%
-    group_by(month) %>%
-    summarise(avg_temp = mean(avg_temp))
-
-  month_dates <- seq(ymd("2016-01-01"),ymd("2017-03-01"), "month")
-
-  alpha_data %>% gather(date, alpha_samp, 1:ncol(alpha_data)) %>%
-    mutate(date = ymd(date),
-           month = month(date, label = TRUE)) %>%
-    mutate(days_since = as.numeric(date - min(date))) %>%
-    group_by(date) %>%
-    left_join(tx_temps, by="month") %>%
-    ggplot(aes(alpha_samp, date, group = date, fill = avg_temp)) +
-    geom_density_ridges(scale=50, rel_min_height = 0.01) +
-    scale_y_continuous(trans = rev_date, breaks = month_dates, labels = date_format("%b-%y")) +
-    scale_x_continuous(breaks = c(0,0.25,0.5, 0.75,1), expand = c(0.01, 0)) +
-    theme_ridges() + theme(panel.grid.major = element_line(color="gray50")) +
-    scale_fill_gradient(low="#FEEDED", high="#8A1923") +
-    guides(fill = guide_colorbar(title = "Average State\nTemperature", barheight = 10,barwidth = 2)) +
-    labs(x = bquote("Scaling Factor ("~alpha~")"), y = "Date")
-}
-
 
 alpha_f4_data <- get_posterior_data("actual", 1, FALSE, alpha=TRUE)
 
 f4_alpha_ridge <- alpha_plot_fxn(alpha_f4_data) +
-    annotate("point", y = ymd("2016-08-01"), x = 0.045, fill = "#5869B1", color = "#5869B1", shape=25, size=5) +
-    annotate("point", y = ymd("2016-10-10"), x = 0.11, fill = "#5869B1", color = "#5869B1", shape=25, size=5)
-
+    annotate("point", y = ymd("2016-08-15"), x = 0.042, fill = "#5869B1", color = "#5869B1", shape=25, size=5) +
+    annotate("point", y = ymd("2016-09-29"), x = 0.1, fill = "#5869B1", color = "#5869B1", shape=25, size=5)
+f4_alpha_ridge
 save_plot("ms_figs/f4_alpha_ridge.png", plot = f4_alpha_ridge, base_height = 8, base_aspect_ratio = 1)
 #
 # alpha_plot <- alpha_plot_fxn(post_alpha_ci, 0.0574, 1)
@@ -252,42 +150,49 @@ save_plot("ms_figs/f4_alpha_ridge.png", plot = f4_alpha_ridge, base_height = 8, 
 ##########################################
 ## Figure 5
 ##########################################
-f5_data <- get_posterior_data("actual", 1, FALSE)
-
-f5_data %>% filter(year == 2016) %>%
-  mutate(prob_det = 0.0574*(1 - dnbinom(0, mu = rnot_samp, size = 0.12))) %>%
-  group_by(county, month) %>%
-  summarize(prob_det = mean(prob_det, na.rm=T)) %>%
-  mutate(month_num = match(month,month.abb)) -> f5_sum_data
-
-f5_prob_case <- f5_sum_data %>% ggplot(aes(month_num, prob_det, group = county)) +
-    geom_line(alpha=0.5) +
-    scale_x_continuous(breaks = 1:12, labels = month.abb) +
-    scale_y_continuous(expand = c(0,0))+
-    labs(y = "Probability Detect Secondary Case", x = "")
+# f5_data <- get_posterior_data("actual", 1, FALSE)
+#
+#
+# f5_data %>% filter(year == 2016) %>%
+#   mutate(prob_det = 0.0574*(1 - dnbinom(0, mu = rnot_samp, size = 0.12))) %>%
+#   group_by(county, month) %>%
+#   summarize(prob_det = mean(prob_det, na.rm=T)) %>%
+#   mutate(month_num = match(month,month.abb)) -> f5_sum_data
+#
+# f5_prob_case <- f5_sum_data %>% ggplot(aes(month_num, prob_det, group = county)) +
+#     geom_line(alpha=0.5) +
+#     scale_x_continuous(breaks = 1:12, labels = month.abb) +
+#     scale_y_continuous(expand = c(0,0))+
+#     labs(y = "Probability Detect Secondary Case", x = "")
 
 
 load("data_produced/all_expected_cases.rda")
-f5_exp_case <- all_expected_cases  %>%
+all_expected_cases  %>%
   mutate(total_expected_cases = as.factor(total_expected_cases),
          extra_import = if_else(extra_import, "Increased Importations", "Reported Importations"),
          extra_import = factor(extra_import, levels = c("Reported Importations", "Increased Importations"))) %>%
   group_by(extra_import, total_expected_cases) %>%
   summarize(total_exp_case_dens = n()/10000) %>%
-  ggplot(aes(x = total_expected_cases, y = total_exp_case_dens)) +
+  mutate(total_expected_cases = (as.numeric(total_expected_cases) - 1),
+         sum_exp_cases = sum(total_expected_cases*total_exp_case_dens, na.rm = T)) ->f5_data
+
+
+f5_exp_case <- f5_data %>% ggplot(aes(x = as.numeric(total_expected_cases), y = total_exp_case_dens)) +
     facet_wrap(~extra_import, nrow=2) +
     geom_bar(stat="identity") +
     theme(strip.background = element_rect(fill=NA, color = "black"))+
     labs(x = "Expected Number of Cases", y="Probability") +
+    scale_x_continuous(breaks = seq(0,10)) +
     scale_y_continuous(expand=c(0,0), limits=c(0,1)) +
     panel_border(colour = "black") +
-    geom_vline(xintercept=2, color = "#5869B1", lty=2, size=1)
+    geom_vline(aes(xintercept=as.numeric(sum_exp_cases)), size=1) +
+    geom_vline(xintercept=1, color = "#5869B1", lty=2, size=1) +
+    coord_cartesian(xlim=c(0,10))
 f5_exp_case
 
-f5_prob_exp_cases <- plot_grid(f5_prob_case, f5_exp_case, labels="AUTO", rel_widths = c(1.5,1))
-
-save_plot("ms_figs/f5_prob_exp_cases.png", plot = f5_prob_exp_cases, base_height = 4, base_aspect_ratio = 2.3)
-
+# f5_prob_exp_cases <- plot_grid(f5_prob_case, f5_exp_case, labels="AUTO", rel_widths = c(1.5,1))
+# save_plot("ms_figs/f5_prob_exp_cases.png", plot = f5_prob_exp_cases, base_height = 4, base_aspect_ratio = 2.3)
+save_plot("ms_figs/f5_exp_case_dist.png", plot = f5_exp_case, base_height = 5, base_aspect_ratio = 0.8)
 ###########################################################
 ## Supplementary Figures
 ###########################################################
@@ -365,187 +270,181 @@ save_plot(filename = "ms_figs/sfigs/sf3_prior_r0_comparison.png", plot = sf3_pri
 ###########################################################
 ## Supp Fig 4 - Median + ub for posterior R0 estimates
 ###########################################################
-load("data_produced/posterior_estimates/county_posterior_rnots_actual_1_false.rda")
 
-posterior_med_ub <- est_posterior %>% select(-alpha) %>%
-  group_by(county, month) %>%
-  summarise(med_r0 = quantile(x = rnot_samp, probs=0.5, na.rm=T),
-            ub_r0 = quantile(x = rnot_samp, probs=0.975, na.rm=T))
-
-
-
-
-sf4_post_med_ub <- map_data(map = "county") %>% filter(region=="texas") %>%
-  mutate(subregion = if_else(subregion=="de witt", "dewitt", subregion)) %>%
-  left_join(posterior_med_ub, by=c("subregion" = "county"))  %>%
-  gather(rnot_level, rnots, med_r0, ub_r0) %>%
-  mutate(month = factor(month, levels=month.abb),
-         rnot_level = factor(if_else(rnot_level == "med_r0", "Median", "97.5%"), levels = c("Median", "97.5%"))) %>%
-  ggplot(aes(x=long, y=lat, fill = rnots, group = subregion)) +
-  facet_wrap(~month+rnot_level, labeller = label_wrap_gen(multi_line=FALSE), ncol = 6) +
-  geom_polygon(color = "gray", size=0.1) +
-  theme_void(base_size = 14)
-
-sf4_post_med_ub <- add_map_scale(sf4_post_med_ub, max_rnot = max(posterior_med_ub$ub_r0, na.rm=T))
+sf4_post_med_ub <- plot_med_ub_post_map("actual")
 sf4_post_med_ub
 
 save_plot("ms_figs/sfigs/sf4_post_med_ub.png", plot = sf4_post_med_ub, base_height = 5, base_aspect_ratio = 1.3)
 
-#########################################################################################################################
-## Haven't updated anything below here
+
+###########################################################
+## Supp Fig 5 - ub estimates for historic temperature estimation and the posterior using historic temperatures
+###########################################################
+
+sf5_historic_post_med_ub <- plot_med_ub_post_map("historic")
+sf5_historic_post_med_ub
+
+save_plot("ms_figs/sfigs/sf5_historic_post_med_ub.png", plot = sf5_historic_post_med_ub, base_height = 5, base_aspect_ratio = 1.3)
 
 
+###########################################################
+## Comparing secondary transmission of 0, 1, and 5 on R0 posterior results
+###########################################################
 
-est_ub_r0 <- est_posterior %>% select(-alpha) %>%
-  group_by(county, month) %>%
-  summarise(med_r0 = quantile(x = rnot_samp, probs=0.5),
-    ub_r0 = quantile(x = rnot_samp, probs=0.975))
-
-ub_rnot_plot <- map_data(map = "county") %>% filter(region=="texas") %>%
-  mutate(subregion = if_else(subregion=="de witt", "dewitt", subregion)) %>%
-  left_join(est_ub_r0, by=c("subregion" = "county"))  %>%
-  gather(rnot_level, rnots, med_r0, ub_r0) %>%
-  mutate(month = factor(month, levels=month.abb),
-         rnot_level = factor(if_else(rnot_level == "med_r0", "Median", "97.5%"), levels = c("Median", "97.5%"))) %>%
-  ggplot(aes(x=long, y=lat, fill = rnots, group = subregion)) +
-  facet_wrap(~month+rnot_level, labeller = label_wrap_gen(multi_line=FALSE), ncol = 6)+
-  geom_polygon(color = "gray", size=0.1) +
-  theme_nothing() +
-  scale_fill_gradientn(name = expression("R"[0]), na.value = "white",
-                       colours = c("white", "blue", "yellow", "red"),
-                       values = scales::rescale(c(0, 1, 1.000001, max(est_ub_r0 %>% ungroup() %>% select(ub_r0)))),
-                       guide = guide_colorbar(title=expression("R"[0]), barheight=10))
-ub_rnot_plot
-
-save_plot("ms_figs/sf2_med_and_ub_rnot_posterior.png", plot = ub_rnot_plot, base_height = 7, base_aspect_ratio = 1.3)
-
-
-
-
-###############################
-## Prior versus posterior binary whether
-###############################
-
-bin_post_prior_rnot <- est_posterior %>% select(-alpha) %>%
-  group_by(county, month) %>%
-  summarise(post_high = quantile(x = rnot_samp, probs=0.975)) %>%
-  left_join(tx_county_rnots, by = c("month", "county")) %>%
-  select(county, month, post_high, high_r0) %>%
-  rename(prior_high = high_r0) %>%
-  gather(rnot_level, value, post_high, prior_high) %>%
-  mutate(month = factor(month, levels=month.abb),
-         bin_value = if_else(value >= 1, "0", "1"),
-         rnot_level = factor(if_else(rnot_level == "post_high", "Posterior", "Prior"), levels = c("Prior", "Posterior")))
-
-prior_post_compare_plot <- map_data(map = "county") %>% filter(region=="texas") %>%
-  mutate(subregion = if_else(subregion=="de witt", "dewitt", subregion)) %>%
-  left_join(bin_post_prior_rnot, by=c("subregion" = "county"))  %>%
-  ggplot(aes(x=long, y=lat, fill = bin_value, group = subregion)) +
-  facet_wrap(~month+rnot_level, labeller = label_wrap_gen(multi_line=FALSE), ncol = 6)+
-  geom_polygon(color = "gray", size=0.1) +
-  theme_nothing() +
-  scale_fill_manual(values = c("black", "white"), guide=FALSE)
-prior_post_compare_plot
-save_plot("ms_figs/sf3_prior_vs_post.png", plot = prior_post_compare_plot, base_height = 7, base_aspect_ratio = 1.3)
-
-############################
-# Statewide daily scaling alpha results - Figure
-############################
-load("data_produced/post_alpha_ci.rda")
-
-
-
-alpha_plot_fxn <- function(alpha_data, reporting, num_sec_trans){
-  alpha_data %>% filter(reporting_rate == reporting, secondary_trans==num_sec_trans) %>%
-    mutate(date = ymd(date)) %>%
-    ggplot(aes(date, med)) +
-    geom_point(size=2) +
-    geom_errorbar(aes(ymin = low, ymax = high))+
-    labs(y = bquote("Scaling Factor ("~alpha~")"), x = "Date", color = "Reporting\nRate") +
-    theme(legend.position = c(0.2,0.5))+
-    coord_cartesian(ylim=c(0,1)) +
-    scale_x_date(labels = date_format("%b"), breaks=date_breaks("month"))
+get_sum_post <- function(posterior){
+  posterior %>% filter(year==2016) %>%
+    group_by(county, month) %>%
+    summarize(median = median(rnot_samp),
+              ub = quantile(rnot_samp, probs = 0.975))
 }
 
-alpha_plot <- alpha_plot_fxn(post_alpha_ci, 0.0574, 1)
-alpha_plot
+no_trans <- get_posterior_data(temperature = "actual", include_trans = 0, extra_imports = FALSE, alpha = FALSE)
+no_trans <- get_sum_post(no_trans)
 
-fig1 <- plot_grid(prior_rnot_plot,import_plot,  alpha_plot, nrow = 3, align="v", labels = "AUTO")
-save_plot("ms_figs/f1_priorr0_import_alpha.png", fig1, base_height = 8, base_aspect_ratio = 1.2)
+trans1 <- get_posterior_data(temperature = "actual", include_trans = 1, extra_imports = FALSE, alpha = FALSE)
+trans1 <- get_sum_post(trans1)
 
-daily_alpha <- plot_grid(import_plot, alpha_plot, align="v", nrow=2, labels = "AUTO", rel_heights = c(1,1.3))
+trans5 <- get_posterior_data(temperature = "actual", include_trans = 5, extra_imports = FALSE, alpha = FALSE)
+trans5 <- get_sum_post(trans5)
 
-save_plot("ms_figs/f3_daily_alpha.png", daily_alpha, base_height = 6, base_aspect_ratio = 1.5)
+increased_imports <- get_posterior_data(temperature = "actual", include_trans = 1, extra_imports = TRUE, alpha = FALSE)
+increased_imports <- get_sum_post(increased_imports)
 
-########
-## Supplemental alpha plot figures
-## Duplicate alpha plots for no secondary transmission, and for more secondary transmission
-alpha_plot_0_trans <- alpha_plot_fxn(post_alpha_ci, 0.0574, 0)
-alpha_plot_5_trans <- alpha_plot_fxn(post_alpha_ci, 0.0574, 5)
+list(no_trans, trans1, trans5, increased_imports) %>%
+  map2(.y = c("no_trans", "trans1", "trans5", "increased"), ~ mutate(.x, id = .y)) %>%
+  bind_rows() -> sum_trans_post
 
-alpha_alt_trans_plots <- plot_grid(alpha_plot_0_trans, alpha_plot_5_trans, align = "v", nrow = 2, labels="AUTO")
-alpha_alt_trans_plots
-save_plot("ms_figs/sf4_daily_alpha_alt_trans.png", alpha_alt_trans_plots, base_height = 6, base_aspect_ratio = 1.4)
 
-## Alpha plot for single secondary transmission that shows effect of reporting rate
-alpha_plot_show_reporting <- post_alpha_ci %>% filter(reporting_rate %in% c("0.0282","0.0574", "0.0866"), secondary_trans==1) %>%
-  mutate(date = ymd(date)) %>%
-  ggplot(aes(date, med)) +
-  geom_point(aes(color = as.factor(reporting_rate)), size=2) +
-  # geom_errorbar(aes(ymin = low, ymax=high))+
-  labs(y = bquote("Scaling Factor ("~alpha~")"), x = "Date", color = "Reporting\nRate") +
-  scale_color_brewer(palette ="YlGnBu", type = "seq") +
-  theme(legend.position = c(0.15,0.8))+
-  coord_cartesian(ylim=c(0,1)) +
-  scale_x_date(labels = date_format("%b"), breaks=date_breaks("month"))+
-  guides(color = guide_legend(override.aes = list(size=5)))
-alpha_plot_show_reporting
-save_plot("ms_figs/sf5_daily_alpha_show_reporting.png", alpha_plot_show_reporting, base_height = 4, base_aspect_ratio = 1.8)
+sum_trans_post %>% gather(sum_stat, rnot, median,ub) %>%
+  spread(key = id, value = rnot) %>%
+  gather(key, value, no_trans, trans5, increased) %>%
+  mutate(key = case_when(key == "trans5" ~ "5 Cases",
+                         key == "no_trans" ~ "0 Cases",
+                         key == "increased" ~ "Increased Importations"),
+         sum_stat = if_else(sum_stat == "median", "Median", "Upperbound")) %>%
+  ggplot(aes(trans1, value, color = key)) +
+  facet_wrap(~sum_stat) +
+  geom_point(alpha=1) +
+  geom_abline(slope = 1, intercept =  0, lty = 2, size=1) +
+  scale_color_manual(values = c("#717171", "black",   "#BBBBBB")) +
+  labs(x = "Baseline Estimates", y = "Sensitivity Estimates", color = "") +
+  theme(legend.position = c(0.05,0.8), strip.background = element_rect(fill=NA)) +
+  coord_cartesian(xlim = c(0,1)) +
+  background_grid()+
+  panel_border(colour = "black") -> sf6_trans_comp_plot
+sf6_trans_comp_plot
+
+save_plot("ms_figs/sfigs/sf6_trans_comp_plot.png", plot = sf6_trans_comp_plot, base_height = 4, base_aspect_ratio = 2)
 
 
 #############################################################
-# Understanding monthly risk for secondary transmission plot
+# Calculating values needed for manuscript
 #############################################################
 
 
+est_posterior = get_posterior_data(temperature = "actual", include_trans = 1, extra_imports = FALSE, alpha = FALSE)
+
+est_posterior %>% filter(year==2016 | year == 1960) %>%
+  group_by(county,month) %>%
+  summarize(median = median(rnot_samp), ub = quantile(rnot_samp, probs = 0.975)) -> posterior_summary
+
+max(posterior_summary$median)
+max(posterior_summary$ub)
+
+hist(posterior_summary$median)
+hist(posterior_summary$ub)
 
 
+# calculating confidence intervals for alpha posterior --------------------
+alpha_dat <- get_posterior_data("actual", 1, FALSE, alpha=TRUE)
+
+quantile(alpha_dat$`2016-11-14`, probs= c(0.0275, 0.5, 0.975))
+quantile(alpha_dat$`2016-12-29`, probs= c(0.0275, 0.5, 0.975))
+
+# confidence intervals for expected cases ---------------------------------
+load("data_produced/all_expected_cases.rda")
+all_expected_cases %>%
+  group_by(extra_import) %>%
+  summarize(lb = quantile(total_expected_cases, probs = 0.0275),
+            mean = mean(total_expected_cases),
+            ub = quantile(total_expected_cases, probs = 0.975))
 
 
-
-
-
-
-##################################
-## Fig for MIDAS draft
-##################################
-load("data_produced/posterior_estimates/county_posterior_rnots_actual_1_false.rda")
-
-est_posterior %>% filter(month=="Aug", year == 2016) %>%
+# sum_trans_post defined above -- takes a long time to read in all data though so not rewriting ehre
+sum_trans_post %>% filter(id == "trans5") %>%
   group_by(county) %>%
-  summarise(med_r0 = quantile(x = rnot_samp, probs=0.5, na.rm = T)) -> aug_post_rnot
+  summarize(max_ub = max(ub)) %>%
+  filter(max_ub > 1) %>%
+  nrow()
 
-map_data(map = "county") %>% filter(region=="texas") %>%
+
+## Poster plots ##################################
+posterior <- get_posterior_data("actual", 1, FALSE)
+post_ub <- posterior %>% select(-alpha) %>%
+  group_by(county, month) %>%
+  filter(month=="Aug") %>%
+  summarise(med_r0 = quantile(x = rnot_samp, probs=0.5, na.rm=T),
+            ub_r0 = quantile(x = rnot_samp, probs=0.99, na.rm=T)) %>%
+  gather(key, value, med_r0, ub_r0) %>%
+  mutate(estimate = "Posterior")
+
+load("data_produced/county_r0_actual_dists.rda")
+
+prior_ub <- county_r0_actual_dists %>% gather(samp, val, V1:V1000) %>%
+  filter(year==2016, month == "Aug") %>%
+  group_by(county, month) %>%
+  summarise(med_r0 = quantile(x = val, probs=0.5, na.rm=T),
+            ub_r0 = quantile(x = val, probs=0.99, na.rm=T)) %>%
+  gather(key, value, med_r0, ub_r0) %>%
+  mutate(estimate = "Prior")
+
+rnot_ests <- bind_rows(post_ub, prior_ub)
+
+
+
+post_med_ub <- map_data(map = "county") %>% filter(region=="texas") %>%
   mutate(subregion = if_else(subregion=="de witt", "dewitt", subregion)) %>%
-  left_join(aug_post_rnot, by=c("subregion" = "county"))  %>%
-  # mutate(month = factor(month, levels=month.abb),
-         # rnot_level = factor(if_else(rnot_level == "med_r0", "Median", "97.5%"), levels = c("Median", "97.5%"))) %>%
-  ggplot(aes(x=long, y=lat, fill = med_r0, group = subregion)) +
-  #facet_wrap(~rnot_level, labeller = label_wrap_gen(multi_line=FALSE), ncol = 6) +
+  left_join(rnot_ests, by=c("subregion" = "county"))  %>%
+  mutate(key = factor(if_else(key == "med_r0", "Median", "99%"), levels = c("Median", "99%")),
+         estimate = factor(estimate, levels = c("Prior", "Posterior"))) %>%
+  ggplot(aes(x=long, y=lat, fill = value, group = subregion)) +
+  facet_grid(estimate~key, labeller = label_wrap_gen(multi_line=FALSE)) +
   geom_polygon(color = "gray", size=0.1) +
-  theme_void(base_size = 14) +
-  theme(legend.position = c(0.0, 0.21),
-        legend.title.align = 0.5) +
-  guides(fill = guide_colorbar(title = expression(R[0]), label.position = "bottom", title.position="top", direction = "horizontal", barwidth=10)) -> midas_aug_post_rnot
-midas_aug_post_rnot <- add_map_scale(midas_aug_post_rnot,
-                                     max_rnot = max(aug_post_rnot$med_r0, na.rm=T))
-library(rtZIKVrisk)
+  theme_void(base_size = 14)
+aug_ests <- add_map_scale(post_med_ub, max_rnot = max(rnot_ests$value, na.rm=T))
+save_plot("figs/rnot_ests.pdf", aug_ests, base_height = 3, base_aspect_ratio = 1.3)
 
-rtzikvrisk_trigger_plot <- plot_fig4(panels = c("c"))
 
-midas_plot <- plot_grid(rtzikvrisk_trigger_plot, midas_aug_post_rnot, nrow=1, labels = "AUTO")
-
-save_plot("midas_zikv_plot.png", midas_plot, base_height = 5, base_aspect_ratio = 2)
+# ##################################
+# ## Fig for MIDAS draft
+# ##################################
+# load("data_produced/posterior_estimates/county_posterior_rnots_actual_1_false.rda")
+#
+# est_posterior %>% filter(month=="Aug", year == 2016) %>%
+#   group_by(county) %>%
+#   summarise(med_r0 = quantile(x = rnot_samp, probs=0.5, na.rm = T)) -> aug_post_rnot
+#
+# map_data(map = "county") %>% filter(region=="texas") %>%
+#   mutate(subregion = if_else(subregion=="de witt", "dewitt", subregion)) %>%
+#   left_join(aug_post_rnot, by=c("subregion" = "county"))  %>%
+#   # mutate(month = factor(month, levels=month.abb),
+#          # rnot_level = factor(if_else(rnot_level == "med_r0", "Median", "97.5%"), levels = c("Median", "97.5%"))) %>%
+#   ggplot(aes(x=long, y=lat, fill = med_r0, group = subregion)) +
+#   #facet_wrap(~rnot_level, labeller = label_wrap_gen(multi_line=FALSE), ncol = 6) +
+#   geom_polygon(color = "gray", size=0.1) +
+#   theme_void(base_size = 14) +
+#   theme(legend.position = c(0.0, 0.21),
+#         legend.title.align = 0.5) +
+#   guides(fill = guide_colorbar(title = expression(R[0]), label.position = "bottom", title.position="top", direction = "horizontal", barwidth=10)) -> midas_aug_post_rnot
+# midas_aug_post_rnot <- add_map_scale(midas_aug_post_rnot,
+#                                      max_rnot = max(aug_post_rnot$med_r0, na.rm=T))
+# library(rtZIKVrisk)
+#
+# rtzikvrisk_trigger_plot <- plot_fig4(panels = c("c"))
+#
+# midas_plot <- plot_grid(rtzikvrisk_trigger_plot, midas_aug_post_rnot, nrow=1, labels = "AUTO")
+#
+# save_plot("midas_zikv_plot.png", midas_plot, base_height = 5, base_aspect_ratio = 2)
 ############################################################################
 ## NOT USED ANYMORE
 ############################################################################
@@ -821,4 +720,110 @@ save_plot("midas_zikv_plot.png", midas_plot, base_height = 5, base_aspect_ratio 
 #   labs(y="Probability", x = "Autochthonous Cases Detected") +
 #   scale_fill_manual(values = c("black", "grey80"), guide=FALSE)
 # binom_plot
+#
+# est_ub_r0 <- est_posterior %>% select(-alpha) %>%
+#   group_by(county, month) %>%
+#   summarise(med_r0 = quantile(x = rnot_samp, probs=0.5),
+#             ub_r0 = quantile(x = rnot_samp, probs=0.975))
+#
+# ub_rnot_plot <- map_data(map = "county") %>% filter(region=="texas") %>%
+#   mutate(subregion = if_else(subregion=="de witt", "dewitt", subregion)) %>%
+#   left_join(est_ub_r0, by=c("subregion" = "county"))  %>%
+#   gather(rnot_level, rnots, med_r0, ub_r0) %>%
+#   mutate(month = factor(month, levels=month.abb),
+#          rnot_level = factor(if_else(rnot_level == "med_r0", "Median", "97.5%"), levels = c("Median", "97.5%"))) %>%
+#   ggplot(aes(x=long, y=lat, fill = rnots, group = subregion)) +
+#   facet_wrap(~month+rnot_level, labeller = label_wrap_gen(multi_line=FALSE), ncol = 6)+
+#   geom_polygon(color = "gray", size=0.1) +
+#   theme_nothing() +
+#   scale_fill_gradientn(name = expression("R"[0]), na.value = "white",
+#                        colours = c("white", "blue", "yellow", "red"),
+#                        values = scales::rescale(c(0, 1, 1.000001, max(est_ub_r0 %>% ungroup() %>% select(ub_r0)))),
+#                        guide = guide_colorbar(title=expression("R"[0]), barheight=10))
+# ub_rnot_plot
+#
+# save_plot("ms_figs/sf2_med_and_ub_rnot_posterior.png", plot = ub_rnot_plot, base_height = 7, base_aspect_ratio = 1.3)
+#
+#
+#
+#
+# ###############################
+# ## Prior versus posterior binary whether
+# ###############################
+#
+# bin_post_prior_rnot <- est_posterior %>% select(-alpha) %>%
+#   group_by(county, month) %>%
+#   summarise(post_high = quantile(x = rnot_samp, probs=0.975)) %>%
+#   left_join(tx_county_rnots, by = c("month", "county")) %>%
+#   select(county, month, post_high, high_r0) %>%
+#   rename(prior_high = high_r0) %>%
+#   gather(rnot_level, value, post_high, prior_high) %>%
+#   mutate(month = factor(month, levels=month.abb),
+#          bin_value = if_else(value >= 1, "0", "1"),
+#          rnot_level = factor(if_else(rnot_level == "post_high", "Posterior", "Prior"), levels = c("Prior", "Posterior")))
+#
+# prior_post_compare_plot <- map_data(map = "county") %>% filter(region=="texas") %>%
+#   mutate(subregion = if_else(subregion=="de witt", "dewitt", subregion)) %>%
+#   left_join(bin_post_prior_rnot, by=c("subregion" = "county"))  %>%
+#   ggplot(aes(x=long, y=lat, fill = bin_value, group = subregion)) +
+#   facet_wrap(~month+rnot_level, labeller = label_wrap_gen(multi_line=FALSE), ncol = 6)+
+#   geom_polygon(color = "gray", size=0.1) +
+#   theme_nothing() +
+#   scale_fill_manual(values = c("black", "white"), guide=FALSE)
+# prior_post_compare_plot
+# save_plot("ms_figs/sf3_prior_vs_post.png", plot = prior_post_compare_plot, base_height = 7, base_aspect_ratio = 1.3)
+#
+# ############################
+# # Statewide daily scaling alpha results - Figure
+# ############################
+# load("data_produced/post_alpha_ci.rda")
+#
+#
+#
+# alpha_plot_fxn <- function(alpha_data, reporting, num_sec_trans){
+#   alpha_data %>% filter(reporting_rate == reporting, secondary_trans==num_sec_trans) %>%
+#     mutate(date = ymd(date)) %>%
+#     ggplot(aes(date, med)) +
+#     geom_point(size=2) +
+#     geom_errorbar(aes(ymin = low, ymax = high))+
+#     labs(y = bquote("Scaling Factor ("~alpha~")"), x = "Date", color = "Reporting\nRate") +
+#     theme(legend.position = c(0.2,0.5))+
+#     coord_cartesian(ylim=c(0,1)) +
+#     scale_x_date(labels = date_format("%b"), breaks=date_breaks("month"))
+# }
+#
+# alpha_plot <- alpha_plot_fxn(post_alpha_ci, 0.0574, 1)
+# alpha_plot
+#
+# fig1 <- plot_grid(prior_rnot_plot,import_plot,  alpha_plot, nrow = 3, align="v", labels = "AUTO")
+# save_plot("ms_figs/f1_priorr0_import_alpha.png", fig1, base_height = 8, base_aspect_ratio = 1.2)
+#
+# daily_alpha <- plot_grid(import_plot, alpha_plot, align="v", nrow=2, labels = "AUTO", rel_heights = c(1,1.3))
+#
+# save_plot("ms_figs/f3_daily_alpha.png", daily_alpha, base_height = 6, base_aspect_ratio = 1.5)
+#
+# ########
+# ## Supplemental alpha plot figures
+# ## Duplicate alpha plots for no secondary transmission, and for more secondary transmission
+# alpha_plot_0_trans <- alpha_plot_fxn(post_alpha_ci, 0.0574, 0)
+# alpha_plot_5_trans <- alpha_plot_fxn(post_alpha_ci, 0.0574, 5)
+#
+# alpha_alt_trans_plots <- plot_grid(alpha_plot_0_trans, alpha_plot_5_trans, align = "v", nrow = 2, labels="AUTO")
+# alpha_alt_trans_plots
+# save_plot("ms_figs/sf4_daily_alpha_alt_trans.png", alpha_alt_trans_plots, base_height = 6, base_aspect_ratio = 1.4)
+#
+# ## Alpha plot for single secondary transmission that shows effect of reporting rate
+# alpha_plot_show_reporting <- post_alpha_ci %>% filter(reporting_rate %in% c("0.0282","0.0574", "0.0866"), secondary_trans==1) %>%
+#   mutate(date = ymd(date)) %>%
+#   ggplot(aes(date, med)) +
+#   geom_point(aes(color = as.factor(reporting_rate)), size=2) +
+#   # geom_errorbar(aes(ymin = low, ymax=high))+
+#   labs(y = bquote("Scaling Factor ("~alpha~")"), x = "Date", color = "Reporting\nRate") +
+#   scale_color_brewer(palette ="YlGnBu", type = "seq") +
+#   theme(legend.position = c(0.15,0.8))+
+#   coord_cartesian(ylim=c(0,1)) +
+#   scale_x_date(labels = date_format("%b"), breaks=date_breaks("month"))+
+#   guides(color = guide_legend(override.aes = list(size=5)))
+# alpha_plot_show_reporting
+# save_plot("ms_figs/sf5_daily_alpha_show_reporting.png", alpha_plot_show_reporting, base_height = 4, base_aspect_ratio = 1.8)
 

@@ -18,4 +18,5 @@
 
 8. run `fake_mcmc_dat_generator.R` to get the fake data used for the first figure
 9. run `cty_sec_trans.R` to get data for last figure in ms
-10. run `ms_fig_creator.R`, which can be used to make all of the figures from the manuscript
+10. run `sim_test_likelihood_fxn.R` to get supplemental figure showing the likelihood vs simulation results.
+11. run `ms_fig_creator.R`, which can be used to make all of the figures from the manuscript

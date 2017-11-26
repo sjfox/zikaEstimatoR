@@ -9,6 +9,7 @@ library(stringr)
 
 tx_imports <- read_csv("data/Zika Disease Cases as of 09282017.csv")
 
+## Only need to look at 201 importation cases
 tx_imports <- tx_imports %>% mutate(notification_date = mdy(`First Notification Date`)) %>%
   mutate(month = as.character(month(notification_date, label=TRUE, abbr = T)),
          year = year(notification_date),
@@ -21,9 +22,11 @@ tx_imports <- tx_imports %>% mutate(notification_date = mdy(`First Notification 
   filter(year==2017)
 
 
-
+## Read in results estimated through 2016
 load("data_produced/posterior_estimates/county_posterior_rnots_actual_1_false.rda")
 
+
+## This function draws from the reporting rate distribution so each sample will have random reporting rate
 draw_new_reporting_rate <- function(){
   reporting <- rnorm(n = 1, mean = 0.0574, sd = 0.0146)
   while(reporting<0){
@@ -31,6 +34,29 @@ draw_new_reporting_rate <- function(){
   }
   reporting
 }
+
+
+
+sim_outbreak <- function(R0, k=.12){
+  ## Simulates outbreaks assuming a negative binomial distribution and branching process
+  # if(R0 >1){
+  #   stop("R0 > 1, so won't run because may cause infinite loop")
+  # }
+  currently_infected <- 1
+  cases <- 1
+  while(currently_infected > 0){
+    new_infected <- rnbinom(currently_infected, mu = R0, size = k)
+    currently_infected <- sum(new_infected)
+    cases <-  cases + currently_infected
+    if(cases > 100){
+      break
+    }
+  }
+  ## Subtract the imported cases
+  cases - 1
+}
+
+
 single_samp <- function(rnots, num_imports, extra_imports = FALSE){
   ## Function generates a single simulated sample for the expected number
   ## of detected cases in a specific county-month
@@ -39,14 +65,19 @@ single_samp <- function(rnots, num_imports, extra_imports = FALSE){
   ## reportin_rate should be a single double
 
   ## First sample from the R0 and reporting rate distribution
-  rnot_samp <- sample(rnots, size = num_imports, replace = T)
   rr_samp <- draw_new_reporting_rate()
   if(extra_imports){
     num_imports <- round(num_imports / rr_samp)
   }
+  rnot_samp <- sample(x = rnots, size = num_imports, replace = T)
+
+
 
   ## From those sampled values, sample secondary infections
-  sec_infections <- sum(rnbinom(n = num_imports, mu = rnot_samp, size = 0.12))
+  # browser()
+  # sec_infections <- sum(rnbinom(n = num_imports, mu = rnot_samp, size = 0.12))
+  sec_infections <- sum(map(rnot_samp, sim_outbreak, k=0.12) %>% flatten_dbl())
+    # rnbinom(n = num_imports, mu = rnot_samp, size = 0.12))
 
   ## Now sample how many infections are detected
   rbinom(1, size = sec_infections, prob = rr_samp)
