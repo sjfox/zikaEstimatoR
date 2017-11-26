@@ -13,7 +13,8 @@ zika_parms <- function(rnot = 1.1,
                        rnot_dist=NA,
                        reporting_rate = 1,
                        secondary_trans = 0,
-                       county_month_year = NA){
+                       county_month_year = NA,
+                       inform_prior=TRUE){
   return(as.list(environment()))
 }
 

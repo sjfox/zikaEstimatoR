@@ -11,8 +11,11 @@ draw_zika_rnots <- function(gamma_parms){
 
 
 lprior <- function(alpha, parms){
-  sum(dgamma(parms$rnot, shape = parms$rnot_dist$shape, rate = parms$rnot_dist$rate, log = T)) #+
-    #dnorm(x = parms$reporting_rate, mean = 0.0574, sd = 0.0146, log = T)
+  if(parms$inform_prior){
+    sum(dgamma(parms$rnot, shape = parms$rnot_dist$shape, rate = parms$rnot_dist$rate, log = T))
+  } else{
+    0
+  }
 }
 
 llprior <- function(alpha, parms){
