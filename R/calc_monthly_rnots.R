@@ -106,7 +106,7 @@ load("data_produced/county_r0_actual_dists.rda")
 tx_actual_county <- tx_county %>%
   mutate(low_r0 = apply(county_r0_actual_dists[,-(1:3)], 1, quantile, probs=c(0.025), na.rm=T),
          med_r0 = apply(county_r0_actual_dists[,-(1:3)], 1, quantile, probs=c(0.5), na.rm=T),
-         high_r0 = apply(county_r0_actual_dists[,-(1:3)], 1, quantile, probs=c(0.975), na.rm=T))
+         high_r0 = apply(county_r0_actual_dists[,-(1:3)], 1, quantile, probs=c(0.99), na.rm=T))
 
 
 tx_actual_county_rnots <- tx_actual_county %>% mutate(month = factor(month, levels = month.abb))

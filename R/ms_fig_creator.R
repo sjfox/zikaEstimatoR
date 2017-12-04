@@ -16,62 +16,11 @@ library(ggridges)
 source("R/plotting_fxns.R")
 
 ## Date of results to be used.
-data_produced_date <- "10-22-2017"
+data_produced_date <- "11-27-2017"
 ###################################################################################
 
-
 ###############################
-## Raw R0 and importation data Figure 1
-###############################
-tx_imports <- read_csv("data/Zika Disease Cases as of 09282017.csv")
-
-import_data <- tx_imports %>% mutate(notification_date = mdy(`First Notification Date`)) %>%
-  #filter(notification_date<max_date) %>%
-  mutate(month = as.character(month(notification_date, label=TRUE, abbr = T)),
-         county = tolower(str_replace_all(County, " County", ""))) %>%
-  select(county, notification_date, month) %>%
-  group_by(notification_date) %>%
-  summarise(num_imports = n()) %>%
-  mutate(cum_imports = cumsum(num_imports))
-
-arrow_data <- data_frame(date = ymd(c("2016-11-22", "2016-12-12", "2017-04-25")),
-                         ystart = c(7,7,7),
-                         yend = c(3,5, 1))
-
-
-import_plot <- import_data %>%
-  ggplot(aes(notification_date, num_imports)) +
-  annotate("rect", xmin=ymd("2016-01-01"), xmax=ymd("2017-01-01"), ymin=0, ymax=Inf, alpha=0.1, fill="black") +
-  annotate("rect", xmin=ymd("2017-01-01"), xmax=as.Date(as.POSIXct(Inf, origin = "2016-01-01")), ymin=0, ymax=Inf, alpha=0.2, fill="green") +
-  annotate("text", x=ymd("2016-02-05"), y=6.6, color = "black", label = "Training", size=6) +
-  annotate("text", x=ymd("2017-01-20"), y=6.6, color = "darkgreen", label = "Test", size=6) +
-  geom_bar(stat="identity", width=2) +
-  labs(y="Importations", x = NULL) +
-  scale_x_date(labels = date_format("%b"), breaks=date_breaks("month"))+
-  scale_y_continuous(expand=c(0,0))+
-  geom_segment(data = arrow_data, aes(x =date, xend=date,y=ystart, yend=yend),
-               arrow = arrow(length = unit(0.3,"cm")), size=1.5, color="#5869B1")
-
-import_plot
-
-load("data_produced/tx_county_actual_summary_rnots.rda")
-
-prior_rnot_plot <- import_data %>%
-  mutate(month = month(notification_date, label = T, abbr = T),
-         year = year(notification_date)) %>%
-  left_join(tx_actual_county_rnots, by = c("month","year")) %>%
-  ggplot(aes(notification_date, med_r0, group = county)) +
-  geom_line(alpha=0.3) +
-  #geom_ribbon(aes(ymax=high, ymin=low), alpha=.2) +
-  scale_x_date(labels = date_format("%b"), breaks=date_breaks("month")) +
-  labs(y = expression("County R"[0]), x = NULL)
-prior_rnot_plot
-
-fig1 <- plot_grid(prior_rnot_plot, import_plot, nrow = 2, align="v", labels = "AUTO")
-save_plot("ms_figs/f1_priorr0_import.png", fig1, base_height = 5, base_aspect_ratio = 1.6)
-
-###############################
-## Conceptual figure 2
+## Conceptual figure 1
 ###############################
 load("data_produced/fig2_data.rda")
 
@@ -115,7 +64,70 @@ update_map_plot
 
 combined_example_fig2 <- plot_grid(updated_rnot_plot, update_map_plot, nrow = 1,labels = "AUTO", rel_widths = c(1,2))
 
-save_plot(filename = "ms_figs/f2_scaling_example.png", plot = combined_example_fig2, base_height = 4, base_aspect_ratio = 3)
+save_plot(filename = "ms_figs/f1_scaling_example.png", plot = combined_example_fig2, base_height = 4, base_aspect_ratio = 3)
+
+
+
+###############################
+## Raw R0 and importation data Figure 2
+###############################
+tx_imports <- read_csv("data/Zika Disease Cases as of 09282017.csv")
+
+import_data <- tx_imports %>% mutate(notification_date = mdy(`First Notification Date`)) %>%
+  #filter(notification_date<max_date) %>%
+  mutate(month = as.character(month(notification_date, label=TRUE, abbr = T)),
+         county = tolower(str_replace_all(County, " County", ""))) %>%
+  select(county, notification_date, month) %>%
+  group_by(notification_date) %>%
+  summarise(num_imports = n()) %>%
+  mutate(cum_imports = cumsum(num_imports))
+
+arrow_data <- data_frame(date = ymd(c("2016-11-22", "2016-12-12", "2017-04-25")),
+                         ystart = c(7,7,7),
+                         yend = c(3,5, 1))
+
+
+import_plot <- import_data %>%
+  ggplot(aes(notification_date, num_imports)) +
+  annotate("rect", xmin=ymd("2016-01-01"), xmax=ymd("2017-01-01"), ymin=0, ymax=Inf, alpha=0.1, fill="black") +
+  annotate("rect", xmin=ymd("2017-01-01"), xmax=as.Date(as.POSIXct(Inf, origin = "2016-01-01")), ymin=0, ymax=Inf, alpha=0.2, fill="green") +
+  annotate("text", x=ymd("2016-02-05"), y=6.6, color = "black", label = "Training", size=6) +
+  annotate("text", x=ymd("2017-01-20"), y=6.6, color = "darkgreen", label = "Test", size=6) +
+  geom_bar(stat="identity", width=2) +
+  labs(y="Importations", x = NULL) +
+  scale_x_date(labels = date_format("%b"), breaks=date_breaks("month"))+
+  scale_y_continuous(expand=c(0,0))+
+  geom_segment(data = arrow_data, aes(x =date, xend=date,y=ystart, yend=yend),
+               arrow = arrow(length = unit(0.3,"cm")), size=1.5, color="#5869B1")
+
+import_plot
+
+load("data_produced/tx_county_actual_summary_rnots.rda")
+
+ub_r0 <- tx_actual_county_rnots %>%
+  group_by(month, year) %>%
+  summarize(high_r0 = max(high_r0))
+
+ub_r0 <-  import_data %>%
+  mutate(month = month(notification_date, label = T, abbr = T),
+         year = year(notification_date)) %>%
+  left_join(ub_r0, by = c("month","year"))
+
+prior_rnot_plot <- import_data %>%
+  mutate(month = month(notification_date, label = T, abbr = T),
+         year = year(notification_date)) %>%
+  left_join(tx_actual_county_rnots, by = c("month","year")) %>%
+  ggplot(aes(notification_date, med_r0, group = county)) +
+  geom_line(alpha=0.3) +
+  geom_line(data = ub_r0, aes(x = notification_date, y=high_r0), lty=2, inherit.aes=FALSE)+
+  #geom_ribbon(aes(ymax=high, ymin=low), alpha=.2) +
+  scale_x_date(labels = date_format("%b"), breaks=date_breaks("month")) +
+  labs(y = expression("County R"[0]), x = NULL)
+prior_rnot_plot
+
+fig1 <- plot_grid(prior_rnot_plot, import_plot, nrow = 2, align="v", labels = "AUTO")
+save_plot("ms_figs/f2_priorr0_import.png", fig1, base_height = 5, base_aspect_ratio = 2)
+
 
 
 ###########################################
@@ -137,11 +149,10 @@ save_plot("ms_figs/f3_posterior_maps.png", plot = f3_posterior_maps, base_height
 alpha_f4_data <- get_posterior_data("actual", 1, FALSE, alpha=TRUE)
 
 f4_alpha_ridge <- alpha_plot_fxn(alpha_f4_data) +
-    annotate("point", y = ymd("2016-08-15"), x = 0.042, fill = "#5869B1", color = "#5869B1", shape=25, size=5) +
-    annotate("point", y = ymd("2016-09-29"), x = 0.1, fill = "#5869B1", color = "#5869B1", shape=25, size=5)
+    annotate("point", y = ymd("2016-08-10"), x = 0.042, fill = "#5869B1", color = "#5869B1", shape=25, size=5) +
+    annotate("point", y = ymd("2016-09-20"), x = 0.1, fill = "#5869B1", color = "#5869B1", shape=25, size=5)
 f4_alpha_ridge
 save_plot("ms_figs/f4_alpha_ridge.png", plot = f4_alpha_ridge, base_height = 8, base_aspect_ratio = 1)
-#
 # alpha_plot <- alpha_plot_fxn(post_alpha_ci, 0.0574, 1)
 # alpha_plot
 #

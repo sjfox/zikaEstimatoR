@@ -52,7 +52,7 @@ sim_outbreak <- function(R0, k=.12){
       break
     }
   }
-  ## Subtract the imported cases
+  ## Subtract the imported case
   cases - 1
 }
 
@@ -85,7 +85,10 @@ single_samp <- function(rnots, num_imports, extra_imports = FALSE){
 
 
 set.seed(101)
-# Simulation steps:
+
+# simulation steps for posterior estimates --------------------------------
+load("data_produced/county_r0_actual_dists.rda")
+
 n_iters <- nrow(tx_imports)
 n_samples <- 10000
 sample_exp_cases <- vector(mode = "list", length = n_iters*2)
@@ -93,9 +96,10 @@ for(extra_imports in c(TRUE, FALSE)){
   for(row in 1:nrow(tx_imports)){
     temp_df <- slice(tx_imports, rep(row,n_samples))
 
+
     rnot_samp <- est_posterior %>% filter(month==tx_imports$month[row],
                                           county == tx_imports$county[row],
-                                          year==2016) %>%
+                                          year==2017) %>%
       select(rnot_samp) %>% unlist() %>% as.numeric()
 
     samp_exp_cases_vec <- vector("numeric", n_samples)
@@ -119,6 +123,7 @@ all_expected_cases <- sample_exp_cases %>%
   group_by(index, extra_import) %>%
   summarize(total_expected_cases = sum(exp_case_samps)) %>%
   ungroup()
+
 
 save(file = "data_produced/all_expected_cases.rda", all_expected_cases)
 
@@ -236,3 +241,44 @@ save(file = "data_produced/all_expected_cases.rda", all_expected_cases)
 #
 # imports_new <- bind_rows(mar,apr,may,jun,jul,aug) %>% mutate(county = tolower(county)) %>%
 #   rename(imported_cases=cases)
+
+# prior r0 estimation -----------------------------------------------------
+# load("data_produced/county_r0_actual_dists.rda")
+#
+# cty_rnots <- county_r0_actual_dists %>%
+#   filter(year==2017) %>%
+#   gather(samp_num, rnot_samp, V1:V1000)
+#
+# n_iters <- nrow(tx_imports)
+# n_samples <- 10000
+# sample_exp_cases2 <- vector(mode = "list", length = n_iters*2)
+# for(extra_imports in c(TRUE, FALSE)){
+#   for(row in 1:nrow(tx_imports)){
+#     temp_df <- slice(tx_imports, rep(row,n_samples))
+#
+#     rnot_samp <- cty_rnots %>% filter(month==tx_imports$month[row],
+#                                       county == tx_imports$county[row]) %>%
+#       select(rnot_samp) %>% unlist() %>% as.numeric()
+#
+#     samp_exp_cases_vec <- vector("numeric", n_samples)
+#     for(i in 1:n_samples){
+#       samp_exp_cases_vec[i] <- single_samp(rnot_samp, tx_imports$num_imports[row], extra_import=extra_imports)
+#     }
+#     temp_df$exp_case_samps <- samp_exp_cases_vec
+#     temp_df$extra_import <- extra_imports
+#
+#     if(!extra_imports){
+#       sample_exp_cases2[[row]] <- temp_df
+#     } else{
+#       sample_exp_cases2[[nrow(tx_imports) + row]] <- temp_df
+#     }
+#   }
+# }
+#
+# prior_expected_cases <- sample_exp_cases2 %>%
+#   bind_rows() %>%
+#   mutate(index = rep(1:10000, 34)) %>%
+#   group_by(index, extra_import) %>%
+#   summarize(total_expected_cases = sum(exp_case_samps)) %>%
+#   ungroup()
+
